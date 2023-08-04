@@ -1,13 +1,16 @@
-module github.com/DeltaLaboratory/mwt
+module github.com/DeltaLaboratory/fwt
 
 go 1.20
 
 require (
 	github.com/cloudflare/circl v1.3.3
-	github.com/vmihailenco/msgpack/v5 v5.3.5
+	github.com/fxamacker/cbor v1.5.1
+	github.com/zeebo/blake3 v0.2.3
+	golang.org/x/crypto v0.11.0
 )
 
 require (
-	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/sys v0.10.0 // indirect
 )
