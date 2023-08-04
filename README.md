@@ -1,4 +1,6 @@
 # FastWebToken
+[![Build, Test](https://github.com/DeltaLaboratory/fwt/actions/workflows/checker.yml/badge.svg)](https://github.com/DeltaLaboratory/fwt/actions/workflows/checker.yml)
+
 Small, Fast and simple JWT alternative that uses CBOR for serialization and EdDSA, HMAC, blake2b and blake3 for signing.
 ## Structure
 |                  Header                   |             Payload              |                                                     Signature                                                      |
