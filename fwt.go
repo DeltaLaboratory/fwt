@@ -1,4 +1,4 @@
-package mwt
+package fwt
 
 import (
 	"encoding/base64"
