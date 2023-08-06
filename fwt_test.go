@@ -1149,8 +1149,8 @@ func ExampleVerifier_VerifyAndUnmarshal() {
 	if err := verifier.VerifyAndUnmarshal("BkQAAAAAAAAApAEYKgJ4L3RoZSBhbnN3ZXIgdG8gbGlmZSwgdGhlIHVuaXZlcnNlIGFuZCBldmVyeXRoaW5nAwAESnNvbWUgYnl0ZXNfUfdgdxFn2YAdHaO3VFbnyNTQOKBjc1/dlonKx8vE/Q==", result); err != nil {
 		panic(err)
 	}
-	fmt.Printf("%+v", result)
-	// Output: &{A:42 B:the answer to life, the universe and everything C:1970-01-01 09:00:00 +0900 KST D:[115 111 109 101 32 98 121 116 101 115]}
+	fmt.Printf("A: %d, B: %s, C: %s, D: %s", result.A, result.B, result.C.Format("2006-01-02"), result.D)
+	// Output: A: 42, B: the answer to life, the universe and everything, C: 1970-01-01, D: some bytes
 }
 
 type TestStruct struct {
