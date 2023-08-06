@@ -7,24 +7,37 @@ import (
 	"github.com/fxamacker/cbor"
 )
 
+// SignatureType is the type of signature.
 type SignatureType int
 
 const (
+	// SignatureTypeEd25519 is the signature type of Ed25519.
 	SignatureTypeEd25519 SignatureType = iota
+	// SignatureTypeEd448 is the signature type of Ed448.
 	SignatureTypeEd448
+	// SignatureTypeHMACSha256 is the signature type of HMAC-SHA256.
 	SignatureTypeHMACSha256
+	// SignatureTypeHMACSha512 is the signature type of HMAC-SHA512.
 	SignatureTypeHMACSha512
+	// SignatureTypeBlake2b256 is the signature type of blake2b-256.
 	SignatureTypeBlake2b256
+	// SignatureTypeBlake2b512 is the signature type of blake2b-512.
 	SignatureTypeBlake2b512
+	// SignatureTypeBlake3 is the signature type of blake3.
 	SignatureTypeBlake3
 )
 
+// Signer is a token factory & signer.
 type Signer struct {
 	signatureType SignatureType
 	signer        func([]byte) ([]byte, error)
 	encryptor     func([]byte) ([]byte, error)
 }
 
+// NewSigner creates a new signer.
+// signer is a function that takes a marshaled data and returns a signature.
+// encryptor is an optional function that takes a token and returns an encrypted token.
+// signatureType is the type of signature, must be matched with the signer.
 func NewSigner(signer func([]byte) ([]byte, error), encryptor func([]byte) ([]byte, error), signatureType SignatureType) *Signer {
 	return &Signer{
 		signatureType: signatureType,
@@ -33,6 +46,8 @@ func NewSigner(signer func([]byte) ([]byte, error), encryptor func([]byte) ([]by
 	}
 }
 
+// Sign signs the data and returns a signed token.
+// If encryptor is set, the token will be encrypted.
 func (s *Signer) Sign(data any) (string, error) {
 	marshaled, err := cbor.Marshal(data, cbor.CanonicalEncOptions())
 	if err != nil {
@@ -62,12 +77,17 @@ func (s *Signer) Sign(data any) (string, error) {
 	return base64.StdEncoding.EncodeToString(token), err
 }
 
+// Verifier is a token verifier.
 type Verifier struct {
 	signatureType SignatureType
 	verifier      func([]byte, []byte) error
 	decrypter     func([]byte) ([]byte, error)
 }
 
+// NewVerifier creates a new verifier.
+// verifier is a function that takes a marshaled data and a signature and returns an error if the signature is invalid.
+// decrypter is an optional function that takes a token and returns a decrypted token.
+// signatureType is the type of signature, must be matched with the verifier.
 func NewVerifier(verifier func([]byte, []byte) error, decrypter func([]byte) ([]byte, error), signatureType SignatureType) *Verifier {
 	return &Verifier{
 		signatureType: signatureType,
@@ -76,6 +96,7 @@ func NewVerifier(verifier func([]byte, []byte) error, decrypter func([]byte) ([]
 	}
 }
 
+// Verify verifies the token.
 func (v *Verifier) Verify(token string) error {
 	tokenDecoded, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
@@ -109,6 +130,7 @@ func (v *Verifier) Verify(token string) error {
 	return v.verifier(tokenDecoded[1+8:1+8+marshaledLen], tokenDecoded[1+8+marshaledLen:])
 }
 
+// VerifyAndUnmarshal verifies the token and unmarshals the data into dst.
 func (v *Verifier) VerifyAndUnmarshal(token string, dst any) error {
 	tokenDecoded, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
