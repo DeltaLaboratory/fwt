@@ -1,10 +1,8 @@
-// borrowed from https://github.com/go-web/tokenizer/blob/master/pkcs7.go
-
 package pkcs7
 
 import (
-	"bytes"
 	"errors"
+	_ "unsafe"
 )
 
 // PKCS7 errors.
@@ -30,14 +28,11 @@ func Pad(b []byte, blockSize int) ([]byte, error) {
 		return nil, ErrInvalidPKCS7Data
 	}
 	n := blockSize - (len(b) % blockSize)
-	pb := make([]byte, len(b)+n)
-	copy(pb, b)
-	copy(pb[len(b):], bytes.Repeat([]byte{byte(n)}, n))
-	return pb, nil
+	return append(b, repeatByte(byte(n), n)...), nil
 }
 
 // Unpad validates and unpads data from the given bytes slice.
-// The returned value will be 1 to n bytes smaller depending on the
+// The returned value will be one to n bytes smaller depending on the
 // amount of padding, where n is the block size.
 func Unpad(b []byte, blockSize int) ([]byte, error) {
 	if blockSize <= 0 {
@@ -61,3 +56,23 @@ func Unpad(b []byte, blockSize int) ([]byte, error) {
 	}
 	return b[:len(b)-n], nil
 }
+
+func repeatByte(b byte, n int) []byte {
+	if n < 0 {
+		panic("repeatByte: negative count")
+	}
+	if n == 0 {
+		return nil
+	}
+	if n == 1 {
+		return []byte{b}
+	}
+	buf := makeNoZero(n)
+	for i := range buf {
+		buf[i] = b
+	}
+	return buf
+}
+
+//go:linkname makeNoZero internal/bytealg.MakeNoZero
+func makeNoZero(n int) []byte
