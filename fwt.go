@@ -7,9 +7,12 @@ import (
 	"github.com/fxamacker/cbor"
 )
 
+const defaultCtx = "github.com/DeltaLaboratory/fwt"
+
 // SignatureType is the type of signature.
 type SignatureType int
 
+// Signature types.
 const (
 	// SignatureTypeEd25519 is the signature type of Ed25519.
 	SignatureTypeEd25519 SignatureType = iota
@@ -130,7 +133,7 @@ func (v *Verifier) Verify(token string) error {
 	return v.verifier(tokenDecoded[1+8:1+8+marshaledLen], tokenDecoded[1+8+marshaledLen:])
 }
 
-// VerifyAndUnmarshal verifies the token and unmarshals the data into dst.
+// VerifyAndUnmarshal verifies the token and unmarshal the data into dst.
 func (v *Verifier) VerifyAndUnmarshal(token string, dst any) error {
 	tokenDecoded, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
