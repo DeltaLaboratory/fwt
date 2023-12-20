@@ -6,6 +6,8 @@ import (
 	"crypto/rand"
 	"fmt"
 
+	"github.com/cloudflare/circl/hpke"
+	"github.com/cloudflare/circl/kem"
 	"golang.org/x/crypto/chacha20poly1305"
 
 	"github.com/DeltaLaboratory/fwt/internal/pkcs7"
@@ -195,5 +197,68 @@ func NewAESGCMDecrypter(key []byte) func([]byte) ([]byte, error) {
 			return nil, fmt.Errorf("failed to create decryptor: %w", err)
 		}
 		return AEAD.Open(nil, data[:12], data[12:], nil)
+	}
+}
+
+// NewHPKEEncryptor creates a new encryptor using HPKE.
+// Experimental, not recommended for production use.
+func NewHPKEEncryptor(key kem.PublicKey, suite hpke.Suite, info ...string) func([]byte) ([]byte, error) {
+	return func(data []byte) ([]byte, error) {
+		var sender *hpke.Sender
+		var err error
+		if len(info) > 0 {
+			sender, err = suite.NewSender(key, []byte(info[0]))
+		} else {
+			sender, err = suite.NewSender(key, []byte(defaultCtx))
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to create HPKE sender: %w", err)
+		}
+		enc, sealer, err := sender.Setup(rand.Reader)
+		if err != nil {
+			return nil, fmt.Errorf("failed to setup HPKE: %w", err)
+		}
+		encrypted, err := sealer.Seal(data, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encrypt data: %w", err)
+		}
+
+		result := make([]byte, 8+len(enc)+len(encrypted))
+		for i := 0; i < 8; i++ {
+			result[i] = byte(len(enc) >> (8 * i))
+		}
+		copy(result[8:], enc)
+		copy(result[8+len(enc):], encrypted)
+		return result, nil
+	}
+}
+
+// NewHPKEDecrypter creates a new decrypter using HPKE.
+// Experimental, not recommended for production use.
+func NewHPKEDecrypter(key kem.PrivateKey, suite hpke.Suite, info ...string) func([]byte) ([]byte, error) {
+	return func(data []byte) ([]byte, error) {
+		encKeyLen := 0
+		for i := 0; i < 8; i++ {
+			encKeyLen |= int(data[i]) << (8 * i)
+		}
+		var receiver *hpke.Receiver
+		var err error
+		if len(info) > 0 {
+			receiver, err = suite.NewReceiver(key, []byte(info[0]))
+		} else {
+			receiver, err = suite.NewReceiver(key, []byte(defaultCtx))
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to create HPKE receiver: %w", err)
+		}
+		opener, err := receiver.Setup(data[8 : 8+encKeyLen])
+		if err != nil {
+			return nil, fmt.Errorf("failed to setup HPKE: %w", err)
+		}
+		pt, err := opener.Open(data[8+encKeyLen:], nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt data: %w", err)
+		}
+		return pt, nil
 	}
 }

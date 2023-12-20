@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudflare/circl/hpke"
 	"github.com/cloudflare/circl/sign/ed25519"
 	"github.com/cloudflare/circl/sign/ed448"
 )
@@ -244,6 +245,66 @@ func TestVerifyAndUnmarshalTokenAES256GCM(t *testing.T) {
 	}
 
 	verifier := NewVerifier(NewBlake2b256Verifier(testHMACKey), NewAESGCMDecrypter(testEncryptionKey), SignatureTypeBlake2b256)
+
+	result := new(TestStruct)
+	if err := verifier.VerifyAndUnmarshal(token, result); err != nil {
+		t.Fatal(err)
+	}
+
+	if result.A != testStruct.A {
+		t.Fatalf("expected %d, got %d", testStruct.A, result.A)
+	}
+	if result.B != testStruct.B {
+		t.Fatalf("expected %s, got %s", testStruct.B, result.B)
+	}
+}
+
+func TestCreateTokenHPKE(t *testing.T) {
+	suite := hpke.NewSuite(hpke.KEM_X25519_HKDF_SHA256, hpke.KDF_HKDF_SHA256, hpke.AEAD_ChaCha20Poly1305)
+	pk, _, err := hpke.KEM_X25519_HKDF_SHA256.Scheme().GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer := NewSigner(NewBlake2b256Signer(testHMACKey), NewHPKEEncryptor(pk, suite), SignatureTypeBlake2b256)
+	_, err = signer.Sign(testStruct)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestVerifyTokenHPKE(t *testing.T) {
+	suite := hpke.NewSuite(hpke.KEM_X25519_HKDF_SHA256, hpke.KDF_HKDF_SHA256, hpke.AEAD_ChaCha20Poly1305)
+	pk, key, err := hpke.KEM_X25519_HKDF_SHA256.Scheme().GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	signer := NewSigner(NewBlake2b256Signer(testHMACKey), NewHPKEEncryptor(pk, suite), SignatureTypeBlake2b256)
+	token, err := signer.Sign(testStruct)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	verifier := NewVerifier(NewBlake2b256Verifier(testHMACKey), NewHPKEDecrypter(key, suite), SignatureTypeBlake2b256)
+	if err := verifier.Verify(token); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestVerifyAndUnmarshalTokenHPKE(t *testing.T) {
+	suite := hpke.NewSuite(hpke.KEM_X25519_HKDF_SHA256, hpke.KDF_HKDF_SHA256, hpke.AEAD_ChaCha20Poly1305)
+	pk, key, err := hpke.KEM_X25519_HKDF_SHA256.Scheme().GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	signer := NewSigner(NewBlake2b256Signer(testHMACKey), NewHPKEEncryptor(pk, suite), SignatureTypeBlake2b256)
+	token, err := signer.Sign(testStruct)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	verifier := NewVerifier(NewBlake2b256Verifier(testHMACKey), NewHPKEDecrypter(key, suite), SignatureTypeBlake2b256)
 
 	result := new(TestStruct)
 	if err := verifier.VerifyAndUnmarshal(token, result); err != nil {
@@ -799,6 +860,69 @@ func BenchmarkVerifyAndUnmarshalEncryptedTokenAES256GCM(b *testing.B) {
 	verifier := NewVerifier(NewBlake2b256Verifier(testHMACKey), NewAESGCMDecrypter(testEncryptionKey), SignatureTypeBlake2b256)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
+		if err := verifier.VerifyAndUnmarshal(token, result); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkCreateTokenHPKE(b *testing.B) {
+	b.StopTimer()
+	suite := hpke.NewSuite(hpke.KEM_X25519_HKDF_SHA256, hpke.KDF_HKDF_SHA256, hpke.AEAD_ChaCha20Poly1305)
+	pk, _, err := hpke.KEM_X25519_HKDF_SHA256.Scheme().GenerateKeyPair()
+	if err != nil {
+		b.Fatal(err)
+	}
+	signer := NewSigner(NewBlake2b256Signer(testHMACKey), NewHPKEEncryptor(pk, suite), SignatureTypeBlake2b256)
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = signer.Sign(testStruct)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkVerifyTokenHPKE(b *testing.B) {
+	b.StopTimer()
+	suite := hpke.NewSuite(hpke.KEM_X25519_HKDF_SHA256, hpke.KDF_HKDF_SHA256, hpke.AEAD_ChaCha20Poly1305)
+	pk, key, err := hpke.KEM_X25519_HKDF_SHA256.Scheme().GenerateKeyPair()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	signer := NewSigner(NewBlake2b256Signer(testHMACKey), NewHPKEEncryptor(pk, suite), SignatureTypeBlake2b256)
+	token, err := signer.Sign(testStruct)
+	if err != nil {
+		b.Fatal(err)
+	}
+	verifier := NewVerifier(NewBlake2b256Verifier(testHMACKey), NewHPKEDecrypter(key, suite), SignatureTypeBlake2b256)
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		if err := verifier.Verify(token); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkVerifyAndUnmarshalTokenHPKE(b *testing.B) {
+	b.StopTimer()
+	suite := hpke.NewSuite(hpke.KEM_X25519_HKDF_SHA256, hpke.KDF_HKDF_SHA256, hpke.AEAD_ChaCha20Poly1305)
+	pk, key, err := hpke.KEM_X25519_HKDF_SHA256.Scheme().GenerateKeyPair()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	signer := NewSigner(NewBlake2b256Signer(testHMACKey), NewHPKEEncryptor(pk, suite), SignatureTypeBlake2b256)
+	token, err := signer.Sign(testStruct)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	verifier := NewVerifier(NewBlake2b256Verifier(testHMACKey), NewHPKEDecrypter(key, suite), SignatureTypeBlake2b256)
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		result := new(TestStruct)
 		if err := verifier.VerifyAndUnmarshal(token, result); err != nil {
 			b.Fatal(err)
 		}
