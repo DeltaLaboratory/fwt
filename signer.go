@@ -30,14 +30,14 @@ func NewEd25519Verifier(key ed25519.PublicKey) func([]byte, []byte) error {
 }
 
 // NewEd448Signer creates a new signer using Ed448 with ed448.PrivateKey.
-// context is optional and defaults to "github.com/DeltaLaboratory/mwt".
+// context is optional and defaults to fwt.defaultCtx.
 // please refer to https://tools.ietf.org/html/rfc8032#section-5.2.6 for more information.
 func NewEd448Signer(key ed448.PrivateKey, context ...string) func([]byte) ([]byte, error) {
 	var ctx string
 	if len(context) != 0 {
 		ctx = context[0]
 	} else {
-		ctx = "github.com/DeltaLaboratory/mwt"
+		ctx = defaultCtx
 	}
 	return func(data []byte) ([]byte, error) {
 		return ed448.Sign(key, data, ctx), nil
@@ -45,14 +45,14 @@ func NewEd448Signer(key ed448.PrivateKey, context ...string) func([]byte) ([]byt
 }
 
 // NewEd448Verifier creates a new verifier using Ed448 with ed448.PublicKey.
-// context is optional and defaults to "github.com/DeltaLaboratory/mwt".
+// context is optional and defaults to fwt.defaultCtx.
 // please refer to https://tools.ietf.org/html/rfc8032#section-5.2.6 for more information.
 func NewEd448Verifier(key ed448.PublicKey, context ...string) func([]byte, []byte) error {
 	var ctx string
 	if len(context) != 0 {
 		ctx = context[0]
 	} else {
-		ctx = "github.com/DeltaLaboratory/mwt"
+		ctx = defaultCtx
 	}
 	return func(data []byte, sig []byte) error {
 		if ed448.Verify(key, data, sig, ctx) {
@@ -62,7 +62,7 @@ func NewEd448Verifier(key ed448.PublicKey, context ...string) func([]byte, []byt
 	}
 }
 
-// NewHMACSha256Signer creates a new signer using HMAC-SHA256 with key.
+// NewHMACSha256Signer creates a new signer using HMAC-SHA256 with a key.
 func NewHMACSha256Signer(key []byte) func([]byte) ([]byte, error) {
 	return func(data []byte) ([]byte, error) {
 		hasher := hmac.New(sha256.New, key)
@@ -71,7 +71,7 @@ func NewHMACSha256Signer(key []byte) func([]byte) ([]byte, error) {
 	}
 }
 
-// NewHMACSha256Verifier creates a new verifier using HMAC-SHA256 with key.
+// NewHMACSha256Verifier creates a new verifier using HMAC-SHA256 with a key.
 func NewHMACSha256Verifier(key []byte) func([]byte, []byte) error {
 	return func(data []byte, sig []byte) error {
 		hasher := hmac.New(sha256.New, key)
@@ -83,7 +83,7 @@ func NewHMACSha256Verifier(key []byte) func([]byte, []byte) error {
 	}
 }
 
-// NewHMACSha512Signer creates a new signer using HMAC-SHA512 with key.
+// NewHMACSha512Signer creates a new signer using HMAC-SHA512 with a key.
 func NewHMACSha512Signer(key []byte) func([]byte) ([]byte, error) {
 	return func(data []byte) ([]byte, error) {
 		hasher := hmac.New(sha512.New, key)
@@ -92,7 +92,7 @@ func NewHMACSha512Signer(key []byte) func([]byte) ([]byte, error) {
 	}
 }
 
-// NewHMACSha512Verifier creates a new verifier using HMAC-SHA512 with key.
+// NewHMACSha512Verifier creates a new verifier using HMAC-SHA512 with a key.
 func NewHMACSha512Verifier(key []byte) func([]byte, []byte) error {
 	return func(data []byte, sig []byte) error {
 		hasher := hmac.New(sha512.New, key)
@@ -104,8 +104,13 @@ func NewHMACSha512Verifier(key []byte) func([]byte, []byte) error {
 	}
 }
 
-// NewBlake2b256Signer creates a new signer using blake2b-256 with key.
+// NewBlake2b256Signer creates a new signer using blake2b-256 with a key.
+// If the key is longer than 64 bytes, it will be hashed with blake2b-512.
 func NewBlake2b256Signer(key []byte) func([]byte) ([]byte, error) {
+	if len(key) > blake2b.Size {
+		t := blake2b.Sum512(key)
+		key = t[:]
+	}
 	return func(data []byte) ([]byte, error) {
 		hasher, err := blake2b.New256(key)
 		if err != nil {
@@ -116,8 +121,13 @@ func NewBlake2b256Signer(key []byte) func([]byte) ([]byte, error) {
 	}
 }
 
-// NewBlake2b256Verifier creates a new verifier using blake2b-256 with key.
+// NewBlake2b256Verifier creates a new verifier using blake2b-256 with a key.
+// If the key is longer than 64 bytes, it will be hashed with blake2b-512.
 func NewBlake2b256Verifier(key []byte) func([]byte, []byte) error {
+	if len(key) > blake2b.Size {
+		t := blake2b.Sum512(key)
+		key = t[:]
+	}
 	return func(data []byte, sig []byte) error {
 		hasher, err := blake2b.New256(key)
 		if err != nil {
@@ -131,8 +141,13 @@ func NewBlake2b256Verifier(key []byte) func([]byte, []byte) error {
 	}
 }
 
-// NewBlake2b512Signer creates a new signer using blake2b-512 with key.
+// NewBlake2b512Signer creates a new signer using blake2b-512 with a key.
+// If the key is larger than 64 bytes, it will be hashed with blake2b-512.
 func NewBlake2b512Signer(key []byte) func([]byte) ([]byte, error) {
+	if len(key) > blake2b.Size {
+		t := blake2b.Sum512(key)
+		key = t[:]
+	}
 	return func(data []byte) ([]byte, error) {
 		hasher, err := blake2b.New512(key)
 		if err != nil {
@@ -143,8 +158,13 @@ func NewBlake2b512Signer(key []byte) func([]byte) ([]byte, error) {
 	}
 }
 
-// NewBlake2b512Verifier creates a new verifier using blake2b-512 with key.
+// NewBlake2b512Verifier creates a new verifier using blake2b-512 with a key.
+// If the key is larger than 64 bytes, it will be hashed with blake2b-512.
 func NewBlake2b512Verifier(key []byte) func([]byte, []byte) error {
+	if len(key) > blake2b.Size {
+		t := blake2b.Sum512(key)
+		key = t[:]
+	}
 	return func(data []byte, sig []byte) error {
 		hasher, err := blake2b.New512(key)
 		if err != nil {
@@ -158,8 +178,13 @@ func NewBlake2b512Verifier(key []byte) func([]byte, []byte) error {
 	}
 }
 
-// NewBlake3Signer creates a new signer using blake3 with key.
+// NewBlake3Signer creates a new signer using blake3 with a key.
+// If the key is not 32 bytes, it will be hashed with blake3.
 func NewBlake3Signer(key []byte) func([]byte) ([]byte, error) {
+	if len(key) != 32 {
+		t := blake3.Sum256(key)
+		key = t[:]
+	}
 	return func(data []byte) ([]byte, error) {
 		hasher, err := blake3.NewKeyed(key)
 		if err != nil {
@@ -170,8 +195,12 @@ func NewBlake3Signer(key []byte) func([]byte) ([]byte, error) {
 	}
 }
 
-// NewBlake3Verifier creates a new verifier using blake3 with key.
+// NewBlake3Verifier creates a new verifier using blake3 with a key.
 func NewBlake3Verifier(key []byte) func([]byte, []byte) error {
+	if len(key) != 32 {
+		t := blake3.Sum256(key)
+		key = t[:]
+	}
 	return func(data []byte, sig []byte) error {
 		hasher, err := blake3.NewKeyed(key)
 		if err != nil {
