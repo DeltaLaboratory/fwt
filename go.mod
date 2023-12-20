@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/cloudflare/circl v1.3.6
-	github.com/fxamacker/cbor v1.5.1
+	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/zeebo/blake3 v0.2.3
 	golang.org/x/crypto v0.17.0
 )

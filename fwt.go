@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/fxamacker/cbor"
+	"github.com/fxamacker/cbor/v2"
 )
 
 const defaultCtx = "github.com/DeltaLaboratory/fwt"
@@ -52,7 +52,7 @@ func NewSigner(signer func([]byte) ([]byte, error), encryptor func([]byte) ([]by
 // Sign signs the data and returns a signed token.
 // If encryptor is set, the token will be encrypted.
 func (s *Signer) Sign(data any) (string, error) {
-	marshaled, err := cbor.Marshal(data, cbor.CanonicalEncOptions())
+	marshaled, err := cbor.Marshal(data)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal data: %w", err)
 	}
