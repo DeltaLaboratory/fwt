@@ -1,6 +1,7 @@
 package fwt
 
 import (
+	"bytes"
 	"crypto/rand"
 	"fmt"
 	"testing"
@@ -1275,6 +1276,147 @@ func ExampleVerifier_VerifyAndUnmarshal() {
 	}
 	fmt.Printf("A: %d, B: %s, C: %s, D: %s", result.A, result.B, result.C.Format("2006-01-02"), result.D)
 	// Output: A: 42, B: the answer to life, the universe and everything, C: 1970-01-01, D: some bytes
+}
+
+func FuzzVerify(f *testing.F) {
+	// Setup
+	testHMACKey := make([]byte, 32)
+	if _, err := rand.Read(testHMACKey); err != nil {
+		f.Fatal(err)
+	}
+
+	_, testEd25519PrivateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		f.Fatal(err)
+	}
+
+	// Add some seed corpus
+	f.Add([]byte("BkQAAAAAAAAApAEYKgJ4L3RoZSBhbnN3ZXIgdG8gbGlmZSwgdGhlIHVuaXZlcnNlIGFuZCBldmVyeXRoaW5nAwAESnNvbWUgYnl0ZXNfUfdgdxFn2YAdHaO3VFbnyNTQOKBjc1/dlonKx8vE/Q=="))
+
+	// Fuzz test
+	f.Fuzz(func(t *testing.T, data []byte) {
+		// Test different verifiers
+		verifiers := []struct {
+			name     string
+			verifier *Verifier
+		}{
+			{"Blake2b256", NewVerifier(NewBlake2b256Verifier(testHMACKey), nil, SignatureTypeBlake2b256)},
+			{"Blake2b512", NewVerifier(NewBlake2b512Verifier(testHMACKey), nil, SignatureTypeBlake2b512)},
+			{"Blake3", NewVerifier(NewBlake3Verifier(testHMACKey), nil, SignatureTypeBlake3)},
+			{"HMACSha256", NewVerifier(NewHMACSha256Verifier(testHMACKey), nil, SignatureTypeHMACSha256)},
+			{"HMACSha512", NewVerifier(NewHMACSha512Verifier(testHMACKey), nil, SignatureTypeHMACSha512)},
+			{"Ed25519", NewVerifier(NewEd25519Verifier(testEd25519PrivateKey.Public().(ed25519.PublicKey)), nil, SignatureTypeEd25519)},
+		}
+
+		for _, v := range verifiers {
+			// Test Verify
+			err := v.verifier.Verify(string(data))
+			if err != nil {
+				// We expect some errors due to invalid input, so we don't fail the test
+				t.Logf("%s Verify error: %v", v.name, err)
+			}
+
+			// Test VerifyAndUnmarshal
+			result := new(TestStruct)
+			err = v.verifier.VerifyAndUnmarshal(string(data), result)
+			if err != nil {
+				// We expect some errors due to invalid input, so we don't fail the test
+				t.Logf("%s VerifyAndUnmarshal error: %v", v.name, err)
+			}
+		}
+	})
+}
+
+func FuzzSign(f *testing.F) {
+	// Setup
+	testHMACKey := make([]byte, 32)
+	if _, err := rand.Read(testHMACKey); err != nil {
+		f.Fatal(err)
+	}
+
+	_, testEd25519PrivateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		f.Fatal(err)
+	}
+
+	// Add some seed corpus
+	f.Add(42, "test", []byte{1, 2, 3, 4})
+
+	// Fuzz test
+	f.Fuzz(func(t *testing.T, a int, b string, d []byte) {
+		testStruct := TestStruct{
+			A: a,
+			B: b,
+			C: testStruct.C, // Use the original time value
+			D: d,
+		}
+
+		signersAndVerifiers := []struct {
+			name     string
+			signer   *Signer
+			verifier *Verifier
+		}{
+			{
+				"Blake2b256",
+				NewSigner(NewBlake2b256Signer(testHMACKey), nil, SignatureTypeBlake2b256),
+				NewVerifier(NewBlake2b256Verifier(testHMACKey), nil, SignatureTypeBlake2b256),
+			},
+			{
+				"Blake2b512",
+				NewSigner(NewBlake2b512Signer(testHMACKey), nil, SignatureTypeBlake2b512),
+				NewVerifier(NewBlake2b512Verifier(testHMACKey), nil, SignatureTypeBlake2b512),
+			},
+			{
+				"Blake3",
+				NewSigner(NewBlake3Signer(testHMACKey), nil, SignatureTypeBlake3),
+				NewVerifier(NewBlake3Verifier(testHMACKey), nil, SignatureTypeBlake3),
+			},
+			{
+				"HMACSha256",
+				NewSigner(NewHMACSha256Signer(testHMACKey), nil, SignatureTypeHMACSha256),
+				NewVerifier(NewHMACSha256Verifier(testHMACKey), nil, SignatureTypeHMACSha256),
+			},
+			{
+				"HMACSha512",
+				NewSigner(NewHMACSha512Signer(testHMACKey), nil, SignatureTypeHMACSha512),
+				NewVerifier(NewHMACSha512Verifier(testHMACKey), nil, SignatureTypeHMACSha512),
+			},
+			{
+				"Ed25519",
+				NewSigner(NewEd25519Signer(testEd25519PrivateKey), nil, SignatureTypeEd25519),
+				NewVerifier(NewEd25519Verifier(testEd25519PrivateKey.Public().(ed25519.PublicKey)), nil, SignatureTypeEd25519),
+			},
+		}
+
+		for _, sv := range signersAndVerifiers {
+			// Sign the data
+			token, err := sv.signer.Sign(testStruct)
+			if err != nil {
+				t.Logf("%s Sign error: %v", sv.name, err)
+				continue
+			}
+
+			// Verify the token
+			err = sv.verifier.Verify(token)
+			if err != nil {
+				t.Errorf("%s Verify error after successful Sign: %v", sv.name, err)
+				continue
+			}
+
+			// Unmarshal and verify the token
+			result := new(TestStruct)
+			err = sv.verifier.VerifyAndUnmarshal(token, result)
+			if err != nil {
+				t.Errorf("%s VerifyAndUnmarshal error after successful Sign: %v", sv.name, err)
+				continue
+			}
+
+			// Check if unmarshaled data matches original data
+			if result.A != testStruct.A || result.B != testStruct.B || !bytes.Equal(result.D, testStruct.D) {
+				t.Errorf("%s: Unmarshaled data does not match original. Original: %+v, Unmarshaled: %+v", sv.name, testStruct, result)
+			}
+		}
+	})
 }
 
 type TestStruct struct {
