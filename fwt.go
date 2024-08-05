@@ -117,13 +117,19 @@ func (v *Verifier) Verify(token string) error {
 	if len(tokenDecoded) < 9 {
 		return fmt.Errorf("invalid token: too short")
 	}
+
 	sigType := SignatureType(tokenDecoded[0])
 	if sigType != v.signatureType {
 		return fmt.Errorf("invalid token: invalid signature type: allowed %d, got %d", v.signatureType, sigType)
 	}
+
 	marshaledLen := 0
 	for i := 0; i < 8; i++ {
 		marshaledLen |= int(tokenDecoded[1+i]) << (8 * i)
+	}
+
+	if marshaledLen < 0 {
+		return fmt.Errorf("invalid token: invalid marshaled length: %d", marshaledLen)
 	}
 
 	if len(tokenDecoded) < 1+8+marshaledLen {
@@ -151,13 +157,19 @@ func (v *Verifier) VerifyAndUnmarshal(token string, dst any) error {
 	if len(tokenDecoded) < 9 {
 		return fmt.Errorf("invalid token: too short")
 	}
+
 	sigType := SignatureType(tokenDecoded[0])
 	if sigType != v.signatureType {
 		return fmt.Errorf("invalid token: invalid signature type")
 	}
+
 	marshaledLen := 0
 	for i := 0; i < 8; i++ {
 		marshaledLen |= int(tokenDecoded[1+i]) << (8 * i)
+	}
+
+	if marshaledLen < 0 {
+		return fmt.Errorf("invalid token: invalid marshaled length: %d", marshaledLen)
 	}
 
 	if len(tokenDecoded) < 1+8+marshaledLen {
