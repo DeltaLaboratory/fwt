@@ -3,6 +3,7 @@ package fwt
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"testing"
 	"time"
@@ -1291,10 +1292,10 @@ func FuzzVerify(f *testing.F) {
 	}
 
 	// Add some seed corpus
-	f.Add([]byte("BkQAAAAAAAAApAEYKgJ4L3RoZSBhbnN3ZXIgdG8gbGlmZSwgdGhlIHVuaXZlcnNlIGFuZCBldmVyeXRoaW5nAwAESnNvbWUgYnl0ZXNfUfdgdxFn2YAdHaO3VFbnyNTQOKBjc1/dlonKx8vE/Q=="))
+	f.Add(0, []byte{0, 0, 0, 0, 0, 0, 0, 0}, []byte{1, 2, 3, 4}, []byte{5, 6, 7, 8, 9, 10})
 
 	// Fuzz test
-	f.Fuzz(func(t *testing.T, data []byte) {
+	f.Fuzz(func(t *testing.T, sigType int, length []byte, data []byte, sig []byte) {
 		// Test different verifiers
 		verifiers := []struct {
 			name     string
@@ -1308,9 +1309,17 @@ func FuzzVerify(f *testing.F) {
 			{"Ed25519", NewVerifier(NewEd25519Verifier(testEd25519PrivateKey.Public().(ed25519.PublicKey)), nil, SignatureTypeEd25519)},
 		}
 
+		txd := make([]byte, 0, 1+len(length)+len(data)+len(sig))
+		txd = append(txd, byte(sigType))
+		txd = append(txd, length...)
+		txd = append(txd, data...)
+		txd = append(txd, sig...)
+
+		mxd := base64.StdEncoding.EncodeToString(txd)
+
 		for _, v := range verifiers {
 			// Test Verify
-			err := v.verifier.Verify(string(data))
+			err := v.verifier.Verify(mxd)
 			if err != nil {
 				// We expect some errors due to invalid input, so we don't fail the test
 				t.Logf("%s Verify error: %v", v.name, err)
@@ -1318,7 +1327,7 @@ func FuzzVerify(f *testing.F) {
 
 			// Test VerifyAndUnmarshal
 			result := new(TestStruct)
-			err = v.verifier.VerifyAndUnmarshal(string(data), result)
+			err = v.verifier.VerifyAndUnmarshal(mxd, result)
 			if err != nil {
 				// We expect some errors due to invalid input, so we don't fail the test
 				t.Logf("%s VerifyAndUnmarshal error: %v", v.name, err)
