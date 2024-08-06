@@ -1254,8 +1254,8 @@ func ExampleVerifier_VerifyAndUnmarshal() {
 	if err := verifier.VerifyAndUnmarshal("BkgAAAAAAAAApAEYKgJ4L3RoZSBhbnN3ZXIgdG8gbGlmZSwgdGhlIHVuaXZlcnNlIGFuZCBldmVyeXRoaW5nAxpK+fBwBEpzb21lIGJ5dGVzLGyZyWWGXpPeYV0KJphXT0ZNMf3KTzKvOdFjltylKoI=", result); err != nil {
 		panic(err)
 	}
-	fmt.Printf("A: %d, B: %s, C: %s, D: %s", result.A, result.B, result.C.Format("2006-01-02"), result.D)
-	// Output: A: 42, B: the answer to life, the universe and everything, C: 2009-11-11, D: some bytes
+	fmt.Printf("A: %d, B: %s, C: %s, D: %s", result.A, result.B, result.C.UTC().Format("2006-01-02"), result.D)
+	// Output: A: 42, B: the answer to life, the universe and everything, C: 2009-11-10, D: some bytes
 }
 
 func FuzzVerify(f *testing.F) {
