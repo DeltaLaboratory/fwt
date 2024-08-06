@@ -173,7 +173,6 @@ func (v *Verifier) Verify(token string) error {
 		return fmt.Errorf("invalid signature")
 	}
 
-	fmt.Printf("marshalLen: %d length use: %d %d %d\n", marshaledLen, 1+8, 1+8+marshaledLen, len(tokenDecoded))
 	return v.verifier(tokenDecoded[1+8:1+8+marshaledLen], tokenDecoded[1+8+marshaledLen:])
 }
 
