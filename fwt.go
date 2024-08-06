@@ -164,10 +164,16 @@ func (v *Verifier) Verify(token string) error {
 		return fmt.Errorf("invalid token: invalid marshaled length: %d", marshaledLen)
 	}
 
+	// check for overflow
+	if 1+8+marshaledLen < 0 {
+		return fmt.Errorf("invalid token: invalid marshaled length: %d", marshaledLen)
+	}
+
 	if len(tokenDecoded) < 1+8+marshaledLen {
 		return fmt.Errorf("invalid signature")
 	}
 
+	fmt.Printf("marshalLen: %d length use: %d %d %d\n", marshaledLen, 1+8, 1+8+marshaledLen, len(tokenDecoded))
 	return v.verifier(tokenDecoded[1+8:1+8+marshaledLen], tokenDecoded[1+8+marshaledLen:])
 }
 
@@ -206,6 +212,11 @@ func (v *Verifier) VerifyAndUnmarshal(token string, dst any) error {
 
 	if len(tokenDecoded) < 1+8+marshaledLen {
 		return fmt.Errorf("invalid signature")
+	}
+
+	// check for overflow
+	if 1+8+marshaledLen < 0 {
+		return fmt.Errorf("invalid token: invalid marshaled length: %d", marshaledLen)
 	}
 
 	if err := v.verifier(tokenDecoded[1+8:1+8+marshaledLen], tokenDecoded[1+8+marshaledLen:]); err != nil {
