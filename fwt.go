@@ -30,6 +30,38 @@ const (
 	SignatureTypeBlake3
 )
 
+var encoder cbor.EncMode
+var decoder cbor.DecMode
+
+func init() {
+	var err error
+	options := cbor.CanonicalEncOptions()
+
+	encoder, err = options.EncMode()
+	if err != nil {
+		panic(err)
+	}
+
+	decodeOptions := cbor.DecOptions{}
+	decodeOptions.UTF8 = cbor.UTF8DecodeInvalid
+	decodeOptions.DupMapKey = cbor.DupMapKeyEnforcedAPF
+
+	decoder, err = decodeOptions.DecMode()
+	if err != nil {
+		panic(err)
+	}
+}
+
+// SetEncoder set custom cbor encoder.
+func SetEncoder(enc cbor.EncMode) {
+	encoder = enc
+}
+
+// SetDecoder set custom cbor decoder.
+func SetDecoder(dec cbor.DecMode) {
+	decoder = dec
+}
+
 // Signer is a token factory & signer.
 type Signer struct {
 	signatureType SignatureType
@@ -52,7 +84,7 @@ func NewSigner(signer func([]byte) ([]byte, error), encryptor func([]byte) ([]by
 // Sign signs the data and returns a signed token.
 // If encryptor is set, the token will be encrypted.
 func (s *Signer) Sign(data any) (string, error) {
-	marshaled, err := cbor.Marshal(data)
+	marshaled, err := encoder.Marshal(data)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal data: %w", err)
 	}
@@ -180,7 +212,7 @@ func (v *Verifier) VerifyAndUnmarshal(token string, dst any) error {
 		return fmt.Errorf("failed to verify signature: %w", err)
 	}
 
-	if err := cbor.Unmarshal(tokenDecoded[1+8:1+8+marshaledLen], dst); err != nil {
+	if err := decoder.Unmarshal(tokenDecoded[1+8:1+8+marshaledLen], dst); err != nil {
 		return fmt.Errorf("failed to unmarshal data: %w", err)
 	}
 	return nil

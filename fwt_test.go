@@ -1399,7 +1399,7 @@ func FuzzSign(f *testing.F) {
 			// Verify the token
 			err = sv.verifier.Verify(token)
 			if err != nil {
-				t.Errorf("%s Verify error after successful Sign: %v", sv.name, err)
+				t.Errorf("%s Verify error after successful Sign: %v: %s", sv.name, err, token)
 				continue
 			}
 
@@ -1407,7 +1407,7 @@ func FuzzSign(f *testing.F) {
 			result := new(TestStruct)
 			err = sv.verifier.VerifyAndUnmarshal(token, result)
 			if err != nil {
-				t.Errorf("%s VerifyAndUnmarshal error after successful Sign: %v", sv.name, err)
+				t.Errorf("%s VerifyAndUnmarshal error after successful Sign: %v: %s", sv.name, err, token)
 				continue
 			}
 
