@@ -1,8 +1,6 @@
 module github.com/DeltaLaboratory/fwt
 
-go 1.22.0
-
-toolchain go1.23.4
+go 1.23.4
 
 require (
 	github.com/cloudflare/circl v1.5.0
