@@ -9,8 +9,6 @@ import (
 	"github.com/DeltaLaboratory/fwt/internal"
 )
 
-const defaultCtx = "github.com/DeltaLaboratory/fwt"
-
 // SignatureType is the type of signature.
 type SignatureType int
 
@@ -47,6 +45,7 @@ func init() {
 	}
 
 	decodeOptions := cbor.DecOptions{}
+	decodeOptions.IndefLength = cbor.IndefLengthForbidden
 	decodeOptions.UTF8 = cbor.UTF8DecodeInvalid
 	decodeOptions.DupMapKey = cbor.DupMapKeyEnforcedAPF
 
@@ -186,11 +185,6 @@ func (v *Verifier) Verify(token string) error {
 
 	tokenLength := 1 + vlqLength + int(marshaledLen)
 
-	// check for overflow
-	if tokenLength < 0 {
-		return fmt.Errorf("invalid token: invalid marshaled length: %d", marshaledLen)
-	}
-
 	if len(tokenDecoded) < tokenLength {
 		return fmt.Errorf("invalid signature")
 	}
@@ -237,11 +231,6 @@ func (v *Verifier) VerifyAndUnmarshal(token string, dst any) error {
 
 	if len(tokenDecoded) < tokenLength {
 		return fmt.Errorf("invalid signature")
-	}
-
-	// check for overflow
-	if tokenLength < 0 {
-		return fmt.Errorf("invalid token: invalid marshaled length: %d", marshaledLen)
 	}
 
 	if err := v.verifier(tokenDecoded[1+vlqLength:tokenLength], tokenDecoded[tokenLength:]); err != nil {
