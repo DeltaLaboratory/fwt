@@ -69,23 +69,36 @@ func SetDecoder(dec cbor.DecMode) {
 type Signer struct {
 	signatureType SignatureType
 	signer        SignerFunc
-	encryptor     func([]byte) ([]byte, error)
+	encryptor     EncryptorFunc
 }
 
 // NewSigner creates a new signer.
 // signer is a function that takes a marshaled data and returns a signature.
 // encryptor is an optional function that takes a token and returns an encrypted token.
 // signatureType is the type of signature, must be matched with the signer.
-func NewSigner(signer SignerFactory, encryptor func([]byte) ([]byte, error)) (*Signer, error) {
+func NewSigner(signer SignerFactory, encryptor EncryptorFactory) (*Signer, error) {
 	sig, signerFunc, err := signer()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create signer: %w", err)
 	}
 
+	if encryptor == nil {
+		return &Signer{
+			signatureType: sig,
+			signer:        signerFunc,
+			encryptor:     nil,
+		}, nil
+	}
+
+	encryptorFunc, err := encryptor()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create encryptor: %w", err)
+	}
+
 	return &Signer{
 		signatureType: sig,
 		signer:        signerFunc,
-		encryptor:     encryptor,
+		encryptor:     encryptorFunc,
 	}, nil
 }
 
@@ -128,23 +141,36 @@ func (s *Signer) Sign(data any) (string, error) {
 type Verifier struct {
 	signatureType SignatureType
 	verifier      VerifierFunc
-	decrypter     func([]byte) ([]byte, error)
+	decrypter     DecrypterFunc
 }
 
 // NewVerifier creates a new verifier.
 // verifier is a function that takes a marshaled data and a signature and returns an error if the signature is invalid.
 // decrypter is an optional function that takes a token and returns a decrypted token.
 // signatureType is the type of signature, must be matched with the verifier.
-func NewVerifier(verifier VerifierFactory, decrypter func([]byte) ([]byte, error)) (*Verifier, error) {
+func NewVerifier(verifier VerifierFactory, decrypter DecrypterFactory) (*Verifier, error) {
 	sig, verifierFunc, err := verifier()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create verifier: %w", err)
 	}
 
+	if decrypter == nil {
+		return &Verifier{
+			signatureType: sig,
+			verifier:      verifierFunc,
+			decrypter:     nil,
+		}, nil
+	}
+
+	decrypterFunc, err := decrypter()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create decrypter: %w", err)
+	}
+
 	return &Verifier{
 		signatureType: sig,
 		verifier:      verifierFunc,
-		decrypter:     decrypter,
+		decrypter:     decrypterFunc,
 	}, nil
 }
 

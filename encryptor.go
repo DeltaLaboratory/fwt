@@ -5,40 +5,65 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"fmt"
+	"io"
 
 	"github.com/cloudflare/circl/hpke"
 	"github.com/cloudflare/circl/kem"
 	"golang.org/x/crypto/chacha20poly1305"
 
+	"github.com/DeltaLaboratory/fwt/internal"
 	"github.com/DeltaLaboratory/fwt/internal/pkcs7"
 )
 
+type EncryptorFactory func() (EncryptorFunc, error)
+type EncryptorFunc func([]byte) ([]byte, error)
+
+type DecrypterFactory func() (DecrypterFunc, error)
+type DecrypterFunc func([]byte) ([]byte, error)
+
 // NewXChaCha20PolyEncryptor creates a new encryptor using XChaCha20-Poly1305.
-func NewXChaCha20PolyEncryptor(key []byte) func([]byte) ([]byte, error) {
-	return func(data []byte) ([]byte, error) {
+func NewXChaCha20PolyEncryptor(key []byte, randPool ...io.Reader) EncryptorFactory {
+	return func() (EncryptorFunc, error) {
+		var randReader io.Reader
+		if len(randPool) > 0 {
+			randReader = randPool[0]
+		} else {
+			randReader = rand.Reader
+		}
+
 		AEAD, err := chacha20poly1305.NewX(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create encryptor: %w", err)
 		}
-		nonce := make([]byte, AEAD.NonceSize(), AEAD.NonceSize()+len(data)+AEAD.Overhead())
-		if _, err := rand.Read(nonce); err != nil {
-			return nil, fmt.Errorf("failed to generate nonce: %w", err)
-		}
-		return AEAD.Seal(nonce, nonce, data, nil), nil
+
+		return func(data []byte) ([]byte, error) {
+			nonce := internal.Alloc(chacha20poly1305.NonceSizeX + len(data) + chacha20poly1305.Overhead)
+			// Set length of allocated buffer to the length of the nonce
+			nonce = nonce[:chacha20poly1305.NonceSizeX]
+
+			if _, err := io.ReadFull(randReader, nonce); err != nil {
+				return nil, fmt.Errorf("failed to generate nonce: %w", err)
+			}
+
+			return AEAD.Seal(nonce, nonce, data, nil), nil
+		}, nil
 	}
 }
 
 // NewXChaCha20PolyDecrypter creates a new decrypter using XChaCha20-Poly1305.
-func NewXChaCha20PolyDecrypter(key []byte) func([]byte) ([]byte, error) {
-	return func(data []byte) ([]byte, error) {
+func NewXChaCha20PolyDecrypter(key []byte) DecrypterFactory {
+	return func() (DecrypterFunc, error) {
 		AEAD, err := chacha20poly1305.NewX(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create decryptor: %w", err)
 		}
-		if len(data) < AEAD.NonceSize() {
-			return nil, fmt.Errorf("invalid data")
-		}
-		return AEAD.Open(nil, data[:AEAD.NonceSize()], data[AEAD.NonceSize():], nil)
+
+		return func(data []byte) ([]byte, error) {
+			if len(data) < chacha20poly1305.NonceSizeX {
+				return nil, fmt.Errorf("invalid data")
+			}
+			return AEAD.Open(nil, data[:chacha20poly1305.NonceSizeX], data[chacha20poly1305.NonceSizeX:], nil)
+		}, nil
 	}
 }
 
@@ -46,157 +71,215 @@ func NewXChaCha20PolyDecrypter(key []byte) func([]byte) ([]byte, error) {
 // Disclaimer: ECB is not secure, it must not be used in production.
 // Please use AES-CBC or AES-GCM instead.
 // See https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Electronic_codebook_(ECB).
-func NewAESECBEncryptor(key []byte) func([]byte) ([]byte, error) {
-	return func(data []byte) ([]byte, error) {
+func NewAESECBEncryptor(key []byte) EncryptorFactory {
+	return func() (EncryptorFunc, error) {
 		block, err := aes.NewCipher(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create encryptor: %w", err)
 		}
-		padded, err := pkcs7.Pad(data, 16)
-		if err != nil {
-			return nil, fmt.Errorf("failed to pad data: %w", err)
-		}
-		cipherText := make([]byte, len(padded))
-		for bs, be := 0, block.BlockSize(); bs < len(data); bs, be = bs+block.BlockSize(), be+block.BlockSize() {
-			block.Encrypt(cipherText[bs:be], padded[bs:be])
-		}
-		return cipherText, nil
+
+		return func(data []byte) ([]byte, error) {
+			padded, err := pkcs7.Pad(data, 16)
+			if err != nil {
+				return nil, fmt.Errorf("failed to pad data: %w", err)
+			}
+			cipherText := internal.Alloc(len(padded))
+
+			for bs, be := 0, block.BlockSize(); bs < len(data); bs, be = bs+block.BlockSize(), be+block.BlockSize() {
+				block.Encrypt(cipherText[bs:be], padded[bs:be])
+			}
+
+			return cipherText, nil
+		}, nil
 	}
+
 }
 
 // NewAESECBDecrypter creates a new decrypter using AES-ECB.
 // Disclaimer: ECB is not secure, it must not be used in production.
 // Please use AES-CBC or AES-GCM instead.
 // See https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Electronic_codebook_(ECB).
-func NewAESECBDecrypter(key []byte) func([]byte) ([]byte, error) {
-	return func(data []byte) ([]byte, error) {
+func NewAESECBDecrypter(key []byte) DecrypterFactory {
+	return func() (DecrypterFunc, error) {
 		block, err := aes.NewCipher(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create decryptor: %w", err)
 		}
-		if len(data)%block.BlockSize() != 0 {
-			return nil, fmt.Errorf("invalid data")
-		}
-		plainText := make([]byte, len(data))
-		for bs, be := 0, block.BlockSize(); bs < len(data); bs, be = bs+block.BlockSize(), be+block.BlockSize() {
-			block.Decrypt(plainText[bs:be], data[bs:be])
-		}
-		plainText, err = pkcs7.Unpad(plainText, 16)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unpad data: %w", err)
-		}
-		return plainText, nil
+
+		return func(data []byte) ([]byte, error) {
+			if len(data)%aes.BlockSize != 0 {
+				return nil, fmt.Errorf("invalid data")
+			}
+			plainText := internal.Alloc(len(data))
+
+			for bs, be := 0, aes.BlockSize; bs < len(data); bs, be = bs+aes.BlockSize, be+aes.BlockSize {
+				block.Decrypt(plainText[bs:be], data[bs:be])
+			}
+			plainText, err = pkcs7.Unpad(plainText, 16)
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to unpad data: %w", err)
+			}
+
+			return plainText, nil
+		}, nil
 	}
+
 }
 
 // NewAESCBCEncryptor creates a new encryptor using AES-CBC.
-func NewAESCBCEncryptor(key []byte) func([]byte) ([]byte, error) {
-	return func(data []byte) ([]byte, error) {
+func NewAESCBCEncryptor(key []byte, randPool ...io.Reader) EncryptorFactory {
+	return func() (EncryptorFunc, error) {
+		var randReader io.Reader
+		if len(randPool) > 0 {
+			randReader = randPool[0]
+		} else {
+			randReader = rand.Reader
+		}
+
 		block, err := aes.NewCipher(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create encryptor: %w", err)
 		}
-		padded, err := pkcs7.Pad(data, 16)
-		if err != nil {
-			return nil, fmt.Errorf("failed to pad data: %w", err)
-		}
-		cipherText := make([]byte, 16+len(padded))
-		if _, err := rand.Read(cipherText[:16]); err != nil {
-			return nil, fmt.Errorf("failed to generate nonce: %w", err)
-		}
-		encryptor := cipher.NewCBCEncrypter(block, cipherText[:16])
-		encryptor.CryptBlocks(cipherText[16:], padded)
-		return cipherText, nil
+
+		return func(data []byte) ([]byte, error) {
+			padded, err := pkcs7.Pad(data, 16)
+			if err != nil {
+				return nil, fmt.Errorf("failed to pad data: %w", err)
+			}
+			cipherText := internal.Alloc(16 + len(padded))
+
+			if _, err := io.ReadFull(randReader, cipherText[:16]); err != nil {
+				return nil, fmt.Errorf("failed to generate nonce: %w", err)
+			}
+
+			encryptor := cipher.NewCBCEncrypter(block, cipherText[:16])
+			encryptor.CryptBlocks(cipherText[16:], padded)
+			return cipherText, nil
+		}, nil
 	}
 }
 
 // NewAESCBCDecrypter creates a new decrypter using AES-CBC.
-func NewAESCBCDecrypter(key []byte) func([]byte) ([]byte, error) {
-	return func(data []byte) ([]byte, error) {
+func NewAESCBCDecrypter(key []byte) DecrypterFactory {
+	return func() (DecrypterFunc, error) {
 		block, err := aes.NewCipher(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create decryptor: %w", err)
 		}
-		if len(data) < 16 {
-			return nil, fmt.Errorf("invalid data")
-		}
-		decrypter := cipher.NewCBCDecrypter(block, data[:16])
-		decrypter.CryptBlocks(data[16:], data[16:])
-		data, err = pkcs7.Unpad(data[16:], 16)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unpad data: %w", err)
-		}
-		return data, nil
+
+		return func(data []byte) ([]byte, error) {
+			if len(data) < 16 {
+				return nil, fmt.Errorf("invalid data")
+			}
+
+			decrypter := cipher.NewCBCDecrypter(block, data[:16])
+			decrypter.CryptBlocks(data[16:], data[16:])
+			data, err = pkcs7.Unpad(data[16:], aes.BlockSize)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unpad data: %w", err)
+			}
+
+			return data, nil
+		}, nil
 	}
 }
 
 // NewAESCTREncryptor creates a new encryptor using AES-CTR.
-func NewAESCTREncryptor(key []byte) func([]byte) ([]byte, error) {
-	return func(data []byte) ([]byte, error) {
+func NewAESCTREncryptor(key []byte, randPool ...io.Reader) EncryptorFactory {
+	return func() (EncryptorFunc, error) {
+		var randReader io.Reader
+		if len(randPool) > 0 {
+			randReader = randPool[0]
+		} else {
+			randReader = rand.Reader
+		}
+
 		block, err := aes.NewCipher(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create encryptor: %w", err)
 		}
-		cipherText := make([]byte, 16+len(data))
-		if _, err := rand.Read(cipherText[:16]); err != nil {
-			return nil, fmt.Errorf("failed to generate nonce: %w", err)
-		}
-		encryptor := cipher.NewCTR(block, cipherText[:16])
-		encryptor.XORKeyStream(cipherText[16:], data)
-		return cipherText, nil
+
+		return func(data []byte) ([]byte, error) {
+			cipherText := internal.Alloc(16 + len(data))
+			if _, err := io.ReadFull(randReader, cipherText[:16]); err != nil {
+				return nil, fmt.Errorf("failed to generate nonce: %w", err)
+			}
+			encryptor := cipher.NewCTR(block, cipherText[:16])
+			encryptor.XORKeyStream(cipherText[16:], data)
+			return cipherText, nil
+		}, nil
 	}
 }
 
 // NewAESCTRDecrypter creates a new decrypter using AES-CTR.
-func NewAESCTRDecrypter(key []byte) func([]byte) ([]byte, error) {
-	return func(data []byte) ([]byte, error) {
+func NewAESCTRDecrypter(key []byte) DecrypterFactory {
+	return func() (DecrypterFunc, error) {
 		block, err := aes.NewCipher(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create decryptor: %w", err)
 		}
-		if len(data) < 16 {
-			return nil, fmt.Errorf("invalid data")
-		}
-		decrypter := cipher.NewCTR(block, data[:16])
-		decrypter.XORKeyStream(data[16:], data[16:])
-		return data[16:], nil
+
+		return func(data []byte) ([]byte, error) {
+			if len(data) < 16 {
+				return nil, fmt.Errorf("invalid data")
+			}
+			decrypter := cipher.NewCTR(block, data[:16])
+			decrypter.XORKeyStream(data[16:], data[16:])
+			return data[16:], nil
+		}, nil
 	}
 }
 
 // NewAESGCMEncryptor creates a new encryptor using AES-GCM.
-func NewAESGCMEncryptor(key []byte) func([]byte) ([]byte, error) {
-	return func(data []byte) ([]byte, error) {
+func NewAESGCMEncryptor(key []byte, randPool ...io.Reader) EncryptorFactory {
+	return func() (EncryptorFunc, error) {
+		var randReader io.Reader
+		if len(randPool) > 0 {
+			randReader = randPool[0]
+		} else {
+			randReader = rand.Reader
+		}
+
 		block, err := aes.NewCipher(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create encryptor: %w", err)
 		}
-		nonce := make([]byte, 12)
-		if _, err := rand.Read(nonce); err != nil {
-			return nil, fmt.Errorf("failed to generate nonce: %w", err)
-		}
+
 		AEAD, err := cipher.NewGCM(block)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create encryptor: %w", err)
 		}
-		return AEAD.Seal(nonce, nonce, data, nil), nil
+
+		return func(data []byte) ([]byte, error) {
+			nonce := internal.Alloc(12)
+			if _, err := io.ReadFull(randReader, nonce); err != nil {
+				return nil, fmt.Errorf("failed to generate nonce: %w", err)
+			}
+			return AEAD.Seal(nonce, nonce, data, nil), nil
+		}, nil
 	}
 }
 
 // NewAESGCMDecrypter creates a new decrypter using AES-GCM.
-func NewAESGCMDecrypter(key []byte) func([]byte) ([]byte, error) {
-	return func(data []byte) ([]byte, error) {
+func NewAESGCMDecrypter(key []byte) DecrypterFactory {
+	return func() (DecrypterFunc, error) {
 		block, err := aes.NewCipher(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create decryptor: %w", err)
 		}
-		if len(data) < 12 {
-			return nil, fmt.Errorf("invalid data")
-		}
+
 		AEAD, err := cipher.NewGCM(block)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create decryptor: %w", err)
 		}
-		return AEAD.Open(nil, data[:12], data[12:], nil)
+
+		return func(data []byte) ([]byte, error) {
+			if len(data) < 12 {
+				return nil, fmt.Errorf("invalid data")
+			}
+			return AEAD.Open(nil, data[:12], data[12:], nil)
+		}, nil
 	}
 }
 
@@ -209,7 +292,7 @@ func NewHPKEEncryptor(key kem.PublicKey, suite hpke.Suite, info ...string) func(
 		if len(info) > 0 {
 			sender, err = suite.NewSender(key, []byte(info[0]))
 		} else {
-			sender, err = suite.NewSender(key, []byte(defaultCtx))
+			sender, err = suite.NewSender(key, []byte{})
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to create HPKE sender: %w", err)
@@ -246,7 +329,7 @@ func NewHPKEDecrypter(key kem.PrivateKey, suite hpke.Suite, info ...string) func
 		if len(info) > 0 {
 			receiver, err = suite.NewReceiver(key, []byte(info[0]))
 		} else {
-			receiver, err = suite.NewReceiver(key, []byte(defaultCtx))
+			receiver, err = suite.NewReceiver(key, []byte{})
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to create HPKE receiver: %w", err)
