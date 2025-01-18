@@ -51,18 +51,21 @@ func NewEd25519Verifier(key []byte) VerifierFactory {
 }
 
 // NewEd448Signer creates a new signer using Ed448 with ed448.PrivateKey.
-// context is optional and defaults to fwt.defaultCtx.
+// context is optional and defaults to empty string.
 // please refer to https://tools.ietf.org/html/rfc8032#section-5.2.6 for more information.
 func NewEd448Signer(key []byte, context ...string) SignerFactory {
-	var ctx string
-	if len(context) != 0 {
-		ctx = context[0]
-	} else {
-		ctx = defaultCtx
-	}
 	return func() (SignatureType, SignerFunc, error) {
 		if len(key) != ed448.SeedSize {
 			return SignatureTypeEd448, nil, fmt.Errorf("invalid key size")
+		}
+
+		var ctx string
+		if len(context) != 0 {
+			ctx = context[0]
+
+			if len(ctx) > ed448.ContextMaxSize {
+				return SignatureTypeEd448, nil, fmt.Errorf("invalid context size")
+			}
 		}
 
 		edKey := ed448.NewKeyFromSeed(key)
@@ -74,18 +77,21 @@ func NewEd448Signer(key []byte, context ...string) SignerFactory {
 }
 
 // NewEd448Verifier creates a new verifier using Ed448 with ed448.PublicKey.
-// context is optional and defaults to fwt.defaultCtx.
+// context is optional and defaults to empty string.
 // please refer to https://tools.ietf.org/html/rfc8032#section-5.2.6 for more information.
 func NewEd448Verifier(key []byte, context ...string) VerifierFactory {
-	var ctx string
-	if len(context) != 0 {
-		ctx = context[0]
-	} else {
-		ctx = defaultCtx
-	}
 	return func() (SignatureType, VerifierFunc, error) {
 		if len(key) != ed448.PublicKeySize {
 			return SignatureTypeEd448, nil, fmt.Errorf("invalid key size")
+		}
+
+		var ctx string
+		if len(context) != 0 {
+			ctx = context[0]
+
+			if len(ctx) > ed448.ContextMaxSize {
+				return SignatureTypeEd448, nil, fmt.Errorf("invalid context size")
+			}
 		}
 
 		edKey := ed448.PublicKey(key)

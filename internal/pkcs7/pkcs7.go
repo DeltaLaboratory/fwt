@@ -2,6 +2,8 @@ package pkcs7
 
 import (
 	"errors"
+
+	"github.com/DeltaLaboratory/fwt/internal"
 )
 
 // PKCS7 errors.
@@ -54,4 +56,21 @@ func Unpad(b []byte, blockSize int) ([]byte, error) {
 		}
 	}
 	return b[:len(b)-n], nil
+}
+
+func repeatByte(b byte, n int) []byte {
+	if n < 0 {
+		panic("repeatByte: negative count")
+	}
+	if n == 0 {
+		return nil
+	}
+	if n == 1 {
+		return []byte{b}
+	}
+	buf := internal.Alloc(n)
+	for i := range buf {
+		buf[i] = b
+	}
+	return buf
 }

@@ -13,6 +13,8 @@ var (
 	ErrValueTooLarge    = errors.New("value too large to encode")
 )
 
+// decodeVLQ decodes a variable-length quantity from the given buffer.
+// It returns the decoded value, the number of bytes read, and an error if any.
 func decodeVLQ(buffer []byte) (uint64, int, error) {
 	if len(buffer) == 0 {
 		return 0, 0, ErrEmptyBuffer
@@ -47,6 +49,8 @@ func decodeVLQ(buffer []byte) (uint64, int, error) {
 	return val, bytesRead, nil
 }
 
+// encodeVLQ encodes a variable-length quantity to the given buffer.
+// It returns the number of bytes written and an error if any.
 func encodeVLQ(buffer []byte, value uint64) (int, error) {
 	if len(buffer) == 0 {
 		return 0, ErrBufferTooSmall

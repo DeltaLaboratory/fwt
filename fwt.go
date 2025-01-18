@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/fxamacker/cbor/v2"
+
+	"github.com/DeltaLaboratory/fwt/internal"
 )
 
 const defaultCtx = "github.com/DeltaLaboratory/fwt"
@@ -101,7 +103,8 @@ func (s *Signer) Sign(data any) (string, error) {
 		return "", fmt.Errorf("failed to sign data: %w", err)
 	}
 
-	token := make([]byte, 1+9+len(marshaled)+len(signature))
+	// allocate token type + VLQ Max Length + marshaled length + signature length
+	token := internal.Alloc(1 + 9 + len(marshaled) + len(signature))
 	token[0] = byte(s.signatureType)
 
 	vlqLength, err := encodeVLQ(token[1:], uint64(len(marshaled)))
@@ -148,10 +151,12 @@ func NewVerifier(verifier VerifierFactory, decrypter func([]byte) ([]byte, error
 
 // Verify verifies the token.
 func (v *Verifier) Verify(token string) error {
-	tokenDecoded, err := base64Encoder.DecodeString(token)
+	tokenDecoded := internal.Alloc(base64Encoder.DecodedLen(len(token)))
+	tokenDecodedLength, err := base64Encoder.Decode(tokenDecoded, []byte(token))
 	if err != nil {
 		return fmt.Errorf("failed to decode token: %w", err)
 	}
+	tokenDecoded = tokenDecoded[:tokenDecodedLength]
 
 	if v.decrypter != nil {
 		decrypted, err := v.decrypter(tokenDecoded)
@@ -179,26 +184,28 @@ func (v *Verifier) Verify(token string) error {
 		return fmt.Errorf("invalid token: invalid marshaled length: %d", marshaledLen)
 	}
 
-	validPacketLength := 1 + vlqLength + int(marshaledLen)
+	tokenLength := 1 + vlqLength + int(marshaledLen)
 
 	// check for overflow
-	if validPacketLength < 0 {
+	if tokenLength < 0 {
 		return fmt.Errorf("invalid token: invalid marshaled length: %d", marshaledLen)
 	}
 
-	if len(tokenDecoded) < validPacketLength {
+	if len(tokenDecoded) < tokenLength {
 		return fmt.Errorf("invalid signature")
 	}
 
-	return v.verifier(tokenDecoded[1+vlqLength:validPacketLength], tokenDecoded[validPacketLength:])
+	return v.verifier(tokenDecoded[1+vlqLength:tokenLength], tokenDecoded[tokenLength:])
 }
 
 // VerifyAndUnmarshal verifies the token and unmarshal the data into dst.
 func (v *Verifier) VerifyAndUnmarshal(token string, dst any) error {
-	tokenDecoded, err := base64Encoder.DecodeString(token)
+	tokenDecoded := internal.Alloc(base64Encoder.DecodedLen(len(token)))
+	tokenDecodedLength, err := base64Encoder.Decode(tokenDecoded, []byte(token))
 	if err != nil {
 		return fmt.Errorf("failed to decode token: %w", err)
 	}
+	tokenDecoded = tokenDecoded[:tokenDecodedLength]
 
 	if v.decrypter != nil {
 		decrypted, err := v.decrypter(tokenDecoded)
@@ -226,22 +233,22 @@ func (v *Verifier) VerifyAndUnmarshal(token string, dst any) error {
 		return fmt.Errorf("invalid token: invalid marshaled length: %d", marshaledLen)
 	}
 
-	validPacketLength := 1 + vlqLength + int(marshaledLen)
+	tokenLength := 1 + vlqLength + int(marshaledLen)
 
-	if len(tokenDecoded) < validPacketLength {
+	if len(tokenDecoded) < tokenLength {
 		return fmt.Errorf("invalid signature")
 	}
 
 	// check for overflow
-	if validPacketLength < 0 {
+	if tokenLength < 0 {
 		return fmt.Errorf("invalid token: invalid marshaled length: %d", marshaledLen)
 	}
 
-	if err := v.verifier(tokenDecoded[1+vlqLength:validPacketLength], tokenDecoded[validPacketLength:]); err != nil {
+	if err := v.verifier(tokenDecoded[1+vlqLength:tokenLength], tokenDecoded[tokenLength:]); err != nil {
 		return fmt.Errorf("failed to verify signature: %w", err)
 	}
 
-	if err := decoder.Unmarshal(tokenDecoded[1+vlqLength:validPacketLength], dst); err != nil {
+	if err := decoder.Unmarshal(tokenDecoded[1+vlqLength:tokenLength], dst); err != nil {
 		return fmt.Errorf("failed to unmarshal data: %w", err)
 	}
 	return nil
