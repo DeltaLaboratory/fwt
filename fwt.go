@@ -36,23 +36,14 @@ var decoder cbor.DecMode
 var base64Encoder = base64.RawURLEncoding
 
 func init() {
-	var err error
 	options := cbor.CanonicalEncOptions()
-
-	encoder, err = options.EncMode()
-	if err != nil {
-		panic(err)
-	}
+	encoder, _ = options.EncMode()
 
 	decodeOptions := cbor.DecOptions{}
 	decodeOptions.IndefLength = cbor.IndefLengthForbidden
 	decodeOptions.UTF8 = cbor.UTF8DecodeInvalid
 	decodeOptions.DupMapKey = cbor.DupMapKeyEnforcedAPF
-
-	decoder, err = decodeOptions.DecMode()
-	if err != nil {
-		panic(err)
-	}
+	decoder, _ = decodeOptions.DecMode()
 }
 
 // SetEncoder set custom cbor encoder.
