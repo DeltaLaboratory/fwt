@@ -39,10 +39,11 @@ func init() {
 	options := cbor.CanonicalEncOptions()
 	encoder, _ = options.EncMode()
 
-	decodeOptions := cbor.DecOptions{}
-	decodeOptions.IndefLength = cbor.IndefLengthForbidden
-	decodeOptions.UTF8 = cbor.UTF8DecodeInvalid
-	decodeOptions.DupMapKey = cbor.DupMapKeyEnforcedAPF
+	decodeOptions := cbor.DecOptions{
+		IndefLength: cbor.IndefLengthForbidden,
+		UTF8:        cbor.UTF8DecodeInvalid,
+		DupMapKey:   cbor.DupMapKeyEnforcedAPF,
+	}
 	decoder, _ = decodeOptions.DecMode()
 }
 
