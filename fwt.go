@@ -2,6 +2,7 @@ package fwt
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 
 	"github.com/fxamacker/cbor/v2"
@@ -28,6 +29,26 @@ const (
 	SignatureTypeBlake2b512
 	// SignatureTypeBlake3 is the signature type of blake3.
 	SignatureTypeBlake3
+)
+
+var (
+	ErrCreateSigner     = errors.New("failed to create signer")
+	ErrCreateEncryptor  = errors.New("failed to create encryptor")
+	ErrCreateVerifier   = errors.New("failed to create verifier")
+	ErrCreateDecrypter  = errors.New("failed to create decrypter")
+	ErrMarshalData      = errors.New("failed to marshal data")
+	ErrSignData         = errors.New("failed to sign data")
+	ErrEncodeVLQ        = errors.New("failed to encode VLQ")
+	ErrEncryptData      = errors.New("failed to encrypt data")
+	ErrDecodeToken      = errors.New("failed to decode token")
+	ErrDecryptData      = errors.New("failed to decrypt data")
+	ErrTokenTooShort    = errors.New("invalid token: too short")
+	ErrInvalidSigType   = errors.New("invalid token: invalid signature type")
+	ErrDecodeVLQ        = errors.New("failed to decode VLQ")
+	ErrInvalidLength    = errors.New("invalid token: invalid marshaled length")
+	ErrInvalidSignature = errors.New("invalid signature")
+	ErrVerifySignature  = errors.New("failed to verify signature")
+	ErrUnmarshalData    = errors.New("failed to unmarshal data")
 )
 
 var encoder cbor.EncMode
@@ -71,7 +92,7 @@ type Signer struct {
 func NewSigner(signer SignerFactory, encryptor EncryptorFactory) (*Signer, error) {
 	sig, signerFunc, err := signer()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create signer: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrCreateSigner, err)
 	}
 
 	if encryptor == nil {
@@ -84,7 +105,7 @@ func NewSigner(signer SignerFactory, encryptor EncryptorFactory) (*Signer, error
 
 	encryptorFunc, err := encryptor()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create encryptor: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrCreateEncryptor, err)
 	}
 
 	return &Signer{
@@ -99,12 +120,12 @@ func NewSigner(signer SignerFactory, encryptor EncryptorFactory) (*Signer, error
 func (s *Signer) Sign(data any) (string, error) {
 	marshaled, err := encoder.Marshal(data)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal data: %w", err)
+		return "", fmt.Errorf("%w: %v", ErrMarshalData, err)
 	}
 
 	signature, err := s.signer(marshaled)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign data: %w", err)
+		return "", fmt.Errorf("%w: %v", ErrSignData, err)
 	}
 
 	// allocate token type + VLQ Max Length + marshaled length + signature length
@@ -113,7 +134,7 @@ func (s *Signer) Sign(data any) (string, error) {
 
 	vlqLength, err := encodeVLQ(token[1:], uint64(len(marshaled)))
 	if err != nil {
-		return "", fmt.Errorf("failed to encode VLQ: %w", err)
+		return "", fmt.Errorf("%w: %v", ErrEncodeVLQ, err)
 	}
 
 	copy(token[1+vlqLength:], marshaled)
@@ -122,7 +143,7 @@ func (s *Signer) Sign(data any) (string, error) {
 	if s.encryptor != nil {
 		encrypted, err := s.encryptor(token[:1+vlqLength+len(marshaled)+len(signature)])
 		if err != nil {
-			return "", fmt.Errorf("failed to encrypt data: %w", err)
+			return "", fmt.Errorf("%w: %v", ErrEncryptData, err)
 		}
 		return base64Encoder.EncodeToString(encrypted), nil
 	}
@@ -143,7 +164,7 @@ type Verifier struct {
 func NewVerifier(verifier VerifierFactory, decrypter DecrypterFactory) (*Verifier, error) {
 	sig, verifierFunc, err := verifier()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create verifier: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrCreateVerifier, err)
 	}
 
 	if decrypter == nil {
@@ -156,7 +177,7 @@ func NewVerifier(verifier VerifierFactory, decrypter DecrypterFactory) (*Verifie
 
 	decrypterFunc, err := decrypter()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create decrypter: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrCreateDecrypter, err)
 	}
 
 	return &Verifier{
@@ -171,40 +192,40 @@ func (v *Verifier) decodeToken(token string) ([]byte, int, int, error) {
 	tokenDecoded := memory.Alloc(base64Encoder.DecodedLen(len(token)))
 	tokenDecodedLength, err := base64Encoder.Decode(tokenDecoded, []byte(token))
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("failed to decode token: %w", err)
+		return nil, 0, 0, fmt.Errorf("%w: %v", ErrDecodeToken, err)
 	}
 	tokenDecoded = tokenDecoded[:tokenDecodedLength]
 
 	if v.decrypter != nil {
 		decrypted, err := v.decrypter(tokenDecoded)
 		if err != nil {
-			return nil, 0, 0, fmt.Errorf("failed to decrypt data: %w", err)
+			return nil, 0, 0, fmt.Errorf("%w: %v", ErrDecryptData, err)
 		}
 		tokenDecoded = decrypted
 	}
 
 	if len(tokenDecoded) < 3 {
-		return nil, 0, 0, fmt.Errorf("invalid token: too short")
+		return nil, 0, 0, ErrTokenTooShort
 	}
 
 	sigType := SignatureType(tokenDecoded[0])
 	if sigType != v.signatureType {
-		return nil, 0, 0, fmt.Errorf("invalid token: invalid signature type: allowed %d, got %d", v.signatureType, sigType)
+		return nil, 0, 0, fmt.Errorf("%w: allowed %d, got %d", ErrInvalidSigType, v.signatureType, sigType)
 	}
 
 	marshaledLen, vlqLength, err := decodeVLQ(tokenDecoded[1:])
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("failed to decode VLQ: %w", err)
+		return nil, 0, 0, fmt.Errorf("%w: %v", ErrDecodeVLQ, err)
 	}
 
 	if marshaledLen < 0 {
-		return nil, 0, 0, fmt.Errorf("invalid token: invalid marshaled length: %d", marshaledLen)
+		return nil, 0, 0, fmt.Errorf("%w: %d", ErrInvalidLength, marshaledLen)
 	}
 
 	tokenLength := 1 + vlqLength + int(marshaledLen)
 
 	if len(tokenDecoded) < tokenLength {
-		return nil, 0, 0, fmt.Errorf("invalid signature")
+		return nil, 0, 0, ErrInvalidSignature
 	}
 
 	return tokenDecoded, vlqLength, tokenLength, nil
@@ -228,11 +249,11 @@ func (v *Verifier) VerifyAndUnmarshal(token string, dst any) error {
 	}
 
 	if err := v.verifier(tokenDecoded[1+vlqLength:tokenLength], tokenDecoded[tokenLength:]); err != nil {
-		return fmt.Errorf("failed to verify signature: %w", err)
+		return fmt.Errorf("%w: %v", ErrVerifySignature, err)
 	}
 
 	if err := decoder.Unmarshal(tokenDecoded[1+vlqLength:tokenLength], dst); err != nil {
-		return fmt.Errorf("failed to unmarshal data: %w", err)
+		return fmt.Errorf("%w: %v", ErrUnmarshalData, err)
 	}
 
 	return nil
