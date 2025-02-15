@@ -166,45 +166,55 @@ func NewVerifier(verifier VerifierFactory, decrypter DecrypterFactory) (*Verifie
 	}, nil
 }
 
-// Verify verifies the token.
-func (v *Verifier) Verify(token string) error {
+// decodeToken decodes token and returns decoded token, VLQ boundary, token boundary.
+func (v *Verifier) decodeToken(token string) ([]byte, int, int, error) {
 	tokenDecoded := internal.Alloc(base64Encoder.DecodedLen(len(token)))
 	tokenDecodedLength, err := base64Encoder.Decode(tokenDecoded, []byte(token))
 	if err != nil {
-		return fmt.Errorf("failed to decode token: %w", err)
+		return nil, 0, 0, fmt.Errorf("failed to decode token: %w", err)
 	}
 	tokenDecoded = tokenDecoded[:tokenDecodedLength]
 
 	if v.decrypter != nil {
 		decrypted, err := v.decrypter(tokenDecoded)
 		if err != nil {
-			return fmt.Errorf("failed to decrypt data: %w", err)
+			return nil, 0, 0, fmt.Errorf("failed to decrypt data: %w", err)
 		}
 		tokenDecoded = decrypted
 	}
 
 	if len(tokenDecoded) < 3 {
-		return fmt.Errorf("invalid token: too short")
+		return nil, 0, 0, fmt.Errorf("invalid token: too short")
 	}
 
 	sigType := SignatureType(tokenDecoded[0])
 	if sigType != v.signatureType {
-		return fmt.Errorf("invalid token: invalid signature type: allowed %d, got %d", v.signatureType, sigType)
+		return nil, 0, 0, fmt.Errorf("invalid token: invalid signature type: allowed %d, got %d", v.signatureType, sigType)
 	}
 
 	marshaledLen, vlqLength, err := decodeVLQ(tokenDecoded[1:])
 	if err != nil {
-		return fmt.Errorf("failed to decode VLQ: %w", err)
+		return nil, 0, 0, fmt.Errorf("failed to decode VLQ: %w", err)
 	}
 
 	if marshaledLen < 0 {
-		return fmt.Errorf("invalid token: invalid marshaled length: %d", marshaledLen)
+		return nil, 0, 0, fmt.Errorf("invalid token: invalid marshaled length: %d", marshaledLen)
 	}
 
 	tokenLength := 1 + vlqLength + int(marshaledLen)
 
 	if len(tokenDecoded) < tokenLength {
-		return fmt.Errorf("invalid signature")
+		return nil, 0, 0, fmt.Errorf("invalid signature")
+	}
+
+	return tokenDecoded, vlqLength, tokenLength, nil
+}
+
+// Verify verifies the token.
+func (v *Verifier) Verify(token string) error {
+	tokenDecoded, vlqLength, tokenLength, err := v.decodeToken(token)
+	if err != nil {
+		return err
 	}
 
 	return v.verifier(tokenDecoded[1+vlqLength:tokenLength], tokenDecoded[tokenLength:])
@@ -212,43 +222,9 @@ func (v *Verifier) Verify(token string) error {
 
 // VerifyAndUnmarshal verifies the token and unmarshal the data into dst.
 func (v *Verifier) VerifyAndUnmarshal(token string, dst any) error {
-	tokenDecoded := internal.Alloc(base64Encoder.DecodedLen(len(token)))
-	tokenDecodedLength, err := base64Encoder.Decode(tokenDecoded, []byte(token))
+	tokenDecoded, vlqLength, tokenLength, err := v.decodeToken(token)
 	if err != nil {
-		return fmt.Errorf("failed to decode token: %w", err)
-	}
-	tokenDecoded = tokenDecoded[:tokenDecodedLength]
-
-	if v.decrypter != nil {
-		decrypted, err := v.decrypter(tokenDecoded)
-		if err != nil {
-			return fmt.Errorf("failed to decrypt data: %w", err)
-		}
-		tokenDecoded = decrypted
-	}
-
-	if len(tokenDecoded) < 9 {
-		return fmt.Errorf("invalid token: too short")
-	}
-
-	sigType := SignatureType(tokenDecoded[0])
-	if sigType != v.signatureType {
-		return fmt.Errorf("invalid token: invalid signature type")
-	}
-
-	marshaledLen, vlqLength, err := decodeVLQ(tokenDecoded[1:])
-	if err != nil {
-		return fmt.Errorf("failed to decode VLQ: %w", err)
-	}
-
-	if marshaledLen < 0 {
-		return fmt.Errorf("invalid token: invalid marshaled length: %d", marshaledLen)
-	}
-
-	tokenLength := 1 + vlqLength + int(marshaledLen)
-
-	if len(tokenDecoded) < tokenLength {
-		return fmt.Errorf("invalid signature")
+		return err
 	}
 
 	if err := v.verifier(tokenDecoded[1+vlqLength:tokenLength], tokenDecoded[tokenLength:]); err != nil {
@@ -258,5 +234,6 @@ func (v *Verifier) VerifyAndUnmarshal(token string, dst any) error {
 	if err := decoder.Unmarshal(tokenDecoded[1+vlqLength:tokenLength], dst); err != nil {
 		return fmt.Errorf("failed to unmarshal data: %w", err)
 	}
+
 	return nil
 }
