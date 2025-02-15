@@ -6,7 +6,7 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/DeltaLaboratory/fwt/internal"
+	"github.com/DeltaLaboratory/fwt/internal/memory"
 )
 
 // SignatureType is the type of signature.
@@ -108,7 +108,7 @@ func (s *Signer) Sign(data any) (string, error) {
 	}
 
 	// allocate token type + VLQ Max Length + marshaled length + signature length
-	token := internal.Alloc(1 + 9 + len(marshaled) + len(signature))
+	token := memory.Alloc(1 + 9 + len(marshaled) + len(signature))
 	token[0] = byte(s.signatureType)
 
 	vlqLength, err := encodeVLQ(token[1:], uint64(len(marshaled)))
@@ -168,7 +168,7 @@ func NewVerifier(verifier VerifierFactory, decrypter DecrypterFactory) (*Verifie
 
 // decodeToken decodes token and returns decoded token, VLQ boundary, token boundary.
 func (v *Verifier) decodeToken(token string) ([]byte, int, int, error) {
-	tokenDecoded := internal.Alloc(base64Encoder.DecodedLen(len(token)))
+	tokenDecoded := memory.Alloc(base64Encoder.DecodedLen(len(token)))
 	tokenDecodedLength, err := base64Encoder.Decode(tokenDecoded, []byte(token))
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("failed to decode token: %w", err)

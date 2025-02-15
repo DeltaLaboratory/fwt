@@ -3,7 +3,7 @@ package pkcs7
 import (
 	"errors"
 
-	"github.com/DeltaLaboratory/fwt/internal"
+	"github.com/DeltaLaboratory/fwt/internal/memory"
 )
 
 // PKCS7 errors.
@@ -68,7 +68,7 @@ func repeatByte(b byte, n int) []byte {
 	if n == 1 {
 		return []byte{b}
 	}
-	buf := internal.Alloc(n)
+	buf := memory.Alloc(n)
 	for i := range buf {
 		buf[i] = b
 	}

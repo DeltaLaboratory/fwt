@@ -11,7 +11,7 @@ import (
 	"github.com/cloudflare/circl/kem"
 	"golang.org/x/crypto/chacha20poly1305"
 
-	"github.com/DeltaLaboratory/fwt/internal"
+	"github.com/DeltaLaboratory/fwt/internal/memory"
 	"github.com/DeltaLaboratory/fwt/internal/pkcs7"
 )
 
@@ -37,7 +37,7 @@ func NewXChaCha20PolyEncryptor(key []byte, randPool ...io.Reader) EncryptorFacto
 		}
 
 		return func(data []byte) ([]byte, error) {
-			nonce := internal.Alloc(chacha20poly1305.NonceSizeX + len(data) + chacha20poly1305.Overhead)
+			nonce := memory.Alloc(chacha20poly1305.NonceSizeX + len(data) + chacha20poly1305.Overhead)
 			// Set length of allocated buffer to the length of the nonce
 			nonce = nonce[:chacha20poly1305.NonceSizeX]
 
@@ -83,7 +83,7 @@ func NewAESECBEncryptor(key []byte) EncryptorFactory {
 			if err != nil {
 				return nil, fmt.Errorf("failed to pad data: %w", err)
 			}
-			cipherText := internal.Alloc(len(padded))
+			cipherText := memory.Alloc(len(padded))
 
 			for bs, be := 0, block.BlockSize(); bs < len(data); bs, be = bs+block.BlockSize(), be+block.BlockSize() {
 				block.Encrypt(cipherText[bs:be], padded[bs:be])
@@ -110,7 +110,7 @@ func NewAESECBDecrypter(key []byte) DecrypterFactory {
 			if len(data)%aes.BlockSize != 0 {
 				return nil, fmt.Errorf("invalid data")
 			}
-			plainText := internal.Alloc(len(data))
+			plainText := memory.Alloc(len(data))
 
 			for bs, be := 0, aes.BlockSize; bs < len(data); bs, be = bs+aes.BlockSize, be+aes.BlockSize {
 				block.Decrypt(plainText[bs:be], data[bs:be])
@@ -147,7 +147,7 @@ func NewAESCBCEncryptor(key []byte, randPool ...io.Reader) EncryptorFactory {
 			if err != nil {
 				return nil, fmt.Errorf("failed to pad data: %w", err)
 			}
-			cipherText := internal.Alloc(16 + len(padded))
+			cipherText := memory.Alloc(16 + len(padded))
 
 			if _, err := io.ReadFull(randReader, cipherText[:16]); err != nil {
 				return nil, fmt.Errorf("failed to generate nonce: %w", err)
@@ -201,7 +201,7 @@ func NewAESCTREncryptor(key []byte, randPool ...io.Reader) EncryptorFactory {
 		}
 
 		return func(data []byte) ([]byte, error) {
-			cipherText := internal.Alloc(16 + len(data))
+			cipherText := memory.Alloc(16 + len(data))
 			if _, err := io.ReadFull(randReader, cipherText[:16]); err != nil {
 				return nil, fmt.Errorf("failed to generate nonce: %w", err)
 			}
@@ -252,7 +252,7 @@ func NewAESGCMEncryptor(key []byte, randPool ...io.Reader) EncryptorFactory {
 		}
 
 		return func(data []byte) ([]byte, error) {
-			nonce := internal.Alloc(12)
+			nonce := memory.Alloc(12)
 			if _, err := io.ReadFull(randReader, nonce); err != nil {
 				return nil, fmt.Errorf("failed to generate nonce: %w", err)
 			}

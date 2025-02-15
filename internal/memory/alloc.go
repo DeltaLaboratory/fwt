@@ -1,7 +1,7 @@
 //go:build go1.21
 // +build go1.21
 
-package internal
+package memory
 
 import (
 	_ "unsafe"
