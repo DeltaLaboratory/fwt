@@ -7,7 +7,7 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/DeltaLaboratory/fwt/internal/memory"
+	"github.com/DeltaLaboratory/fwt/v2/internal/memory"
 )
 
 // SignatureType is the type of signature.
@@ -89,13 +89,13 @@ type Signer struct {
 // signer is a function that takes a marshaled data and returns a signature.
 // encryptor is an optional function that takes a token and returns an encrypted token.
 // signatureType is the type of signature, must be matched with the signer.
-func NewSigner(signer SignerFactory, encryptor EncryptorFactory) (*Signer, error) {
+func NewSigner(signer SignerFactory, encryptor ...EncryptorFactory) (*Signer, error) {
 	sig, signerFunc, err := signer()
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCreateSigner, err)
 	}
 
-	if encryptor == nil {
+	if len(encryptor) == 0 || (len(encryptor) == 1 && encryptor[0] == nil) {
 		return &Signer{
 			signatureType: sig,
 			signer:        signerFunc,
@@ -103,16 +103,20 @@ func NewSigner(signer SignerFactory, encryptor EncryptorFactory) (*Signer, error
 		}, nil
 	}
 
-	encryptorFunc, err := encryptor()
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrCreateEncryptor, err)
-	}
+	if len(encryptor) == 1 {
+		encryptorFunc, err := encryptor[0]()
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrCreateEncryptor, err)
+		}
 
-	return &Signer{
-		signatureType: sig,
-		signer:        signerFunc,
-		encryptor:     encryptorFunc,
-	}, nil
+		return &Signer{
+			signatureType: sig,
+			signer:        signerFunc,
+			encryptor:     encryptorFunc,
+		}, nil
+	} else {
+		return nil, fmt.Errorf("%w: expected at most one encryptor, got %d", ErrCreateVerifier, len(encryptor))
+	}
 }
 
 // Sign signs the data and returns a signed token.
@@ -161,13 +165,14 @@ type Verifier struct {
 // verifier is a function that takes a marshaled data and a signature and returns an error if the signature is invalid.
 // decrypter is an optional function that takes a token and returns a decrypted token.
 // signatureType is the type of signature, must be matched with the verifier.
-func NewVerifier(verifier VerifierFactory, decrypter DecrypterFactory) (*Verifier, error) {
+func NewVerifier(verifier VerifierFactory, decrypter ...DecrypterFactory) (*Verifier, error) {
 	sig, verifierFunc, err := verifier()
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCreateVerifier, err)
 	}
 
-	if decrypter == nil {
+	// length of nil decrypter is zero
+	if len(decrypter) == 0 || (len(decrypter) == 1 && decrypter[0] == nil) {
 		return &Verifier{
 			signatureType: sig,
 			verifier:      verifierFunc,
@@ -175,16 +180,20 @@ func NewVerifier(verifier VerifierFactory, decrypter DecrypterFactory) (*Verifie
 		}, nil
 	}
 
-	decrypterFunc, err := decrypter()
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrCreateDecrypter, err)
-	}
+	if len(decrypter) == 1 {
+		decrypterFunc, err := decrypter[0]()
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrCreateDecrypter, err)
+		}
 
-	return &Verifier{
-		signatureType: sig,
-		verifier:      verifierFunc,
-		decrypter:     decrypterFunc,
-	}, nil
+		return &Verifier{
+			signatureType: sig,
+			verifier:      verifierFunc,
+			decrypter:     decrypterFunc,
+		}, nil
+	} else {
+		return nil, fmt.Errorf("%w: expected at most one decrypter, got %d", ErrCreateVerifier, len(decrypter))
+	}
 }
 
 // decodeToken decodes token and returns decoded token, VLQ boundary, token boundary.

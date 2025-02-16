@@ -3,7 +3,7 @@ package pkcs7
 import (
 	"errors"
 
-	"github.com/DeltaLaboratory/fwt/internal/memory"
+	"github.com/DeltaLaboratory/fwt/v2/internal/memory"
 )
 
 // PKCS7 errors.

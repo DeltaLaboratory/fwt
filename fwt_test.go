@@ -132,7 +132,7 @@ func TestTokenOperations(t *testing.T) {
 		{
 			name: "Ed25519",
 			signer: func() *Signer {
-				s, err := NewSigner(NewEd25519Signer(testEd25519PrivateKey), nil)
+				s, err := NewSigner(NewEd25519Signer(testEd25519PrivateKey))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -149,7 +149,7 @@ func TestTokenOperations(t *testing.T) {
 		{
 			name: "Ed448",
 			signer: func() *Signer {
-				s, err := NewSigner(NewEd448Signer(testEd448PrivateKey), nil)
+				s, err := NewSigner(NewEd448Signer(testEd448PrivateKey))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -166,14 +166,14 @@ func TestTokenOperations(t *testing.T) {
 		{
 			name: "HMACSha256",
 			signer: func() *Signer {
-				s, err := NewSigner(NewHMACSha256Signer(testHMACKey), nil)
+				s, err := NewSigner(NewHMACSha256Signer(testHMACKey))
 				if err != nil {
 					t.Fatal(err)
 				}
 				return s
 			}(),
 			verifier: func() *Verifier {
-				v, err := NewVerifier(NewHMACSha256Verifier(testHMACKey), nil)
+				v, err := NewVerifier(NewHMACSha256Verifier(testHMACKey))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -183,14 +183,14 @@ func TestTokenOperations(t *testing.T) {
 		{
 			name: "HMACSha512",
 			signer: func() *Signer {
-				s, err := NewSigner(NewHMACSha512Signer(testHMACKey), nil)
+				s, err := NewSigner(NewHMACSha512Signer(testHMACKey))
 				if err != nil {
 					t.Fatal(err)
 				}
 				return s
 			}(),
 			verifier: func() *Verifier {
-				v, err := NewVerifier(NewHMACSha512Verifier(testHMACKey), nil)
+				v, err := NewVerifier(NewHMACSha512Verifier(testHMACKey))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -200,14 +200,14 @@ func TestTokenOperations(t *testing.T) {
 		{
 			name: "Blake2b256",
 			signer: func() *Signer {
-				s, err := NewSigner(NewBlake2b256Signer(testHMACKey), nil)
+				s, err := NewSigner(NewBlake2b256Signer(testHMACKey))
 				if err != nil {
 					t.Fatal(err)
 				}
 				return s
 			}(),
 			verifier: func() *Verifier {
-				v, err := NewVerifier(NewBlake2b256Verifier(testHMACKey), nil)
+				v, err := NewVerifier(NewBlake2b256Verifier(testHMACKey))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -217,14 +217,14 @@ func TestTokenOperations(t *testing.T) {
 		{
 			name: "Blake2b512",
 			signer: func() *Signer {
-				s, err := NewSigner(NewBlake2b512Signer(testHMACKey), nil)
+				s, err := NewSigner(NewBlake2b512Signer(testHMACKey))
 				if err != nil {
 					t.Fatal(err)
 				}
 				return s
 			}(),
 			verifier: func() *Verifier {
-				v, err := NewVerifier(NewBlake2b512Verifier(testHMACKey), nil)
+				v, err := NewVerifier(NewBlake2b512Verifier(testHMACKey))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -234,14 +234,14 @@ func TestTokenOperations(t *testing.T) {
 		{
 			name: "Blake3",
 			signer: func() *Signer {
-				s, err := NewSigner(NewBlake3Signer(testHMACKey), nil)
+				s, err := NewSigner(NewBlake3Signer(testHMACKey))
 				if err != nil {
 					t.Fatal(err)
 				}
 				return s
 			}(),
 			verifier: func() *Verifier {
-				v, err := NewVerifier(NewBlake3Verifier(testHMACKey), nil)
+				v, err := NewVerifier(NewBlake3Verifier(testHMACKey))
 				if err != nil {
 					t.Fatal(err)
 				}

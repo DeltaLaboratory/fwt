@@ -11,8 +11,8 @@ import (
 	"github.com/cloudflare/circl/kem"
 	"golang.org/x/crypto/chacha20poly1305"
 
-	"github.com/DeltaLaboratory/fwt/internal/memory"
-	"github.com/DeltaLaboratory/fwt/internal/pkcs7"
+	"github.com/DeltaLaboratory/fwt/v2/internal/memory"
+	"github.com/DeltaLaboratory/fwt/v2/internal/pkcs7"
 )
 
 type EncryptorFactory func() (EncryptorFunc, error)
