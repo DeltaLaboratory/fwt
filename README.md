@@ -35,16 +35,13 @@ import (
 )
 
 func main() {
-	signer, err := fwt.NewSigner(
-		fwt.NewBlake3Signer([]byte("somekeyhere")),
-		nil,          // Optional encryption
-	)
+	signer, err := fwt.NewSigner(fwt.NewBlake3Signer([]byte("somekeyhere")))
 	
 	if err != nil {
 		panic(err)
 	}
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"user_id": 123,
 		"exp":     time.Now().Add(time.Hour).Unix(),
 	}
@@ -64,23 +61,20 @@ package main
 import "github.com/DeltaLaboratory/fwt/v2"
 
 func verifyToken(token []byte) {
-	verifier, err := fwt.NewVerifier(
-		fwt.NewBlake3Verifier([]byte("somekey")), 
-		nil,
-	)
+	verifier, err := fwt.NewVerifier(fwt.NewBlake3Verifier([]byte("somekey")))
 	
 	if err != nil {
 		panic(err)
 	}
 	
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := verifier.VerifyAndUnmarshal(token, &payload); err != nil {
 		panic(err)
 	}
 }
 ```
 
-For working example, see [test code](fwt_test.go).
+For more example, see [test code](fwt_test.go).
 
 ## Token Structure
 
