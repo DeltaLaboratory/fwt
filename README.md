@@ -1,71 +1,119 @@
-# FastWebToken (FWT)
-[![Build, Test](https://github.com/DeltaLaboratory/fwt/actions/workflows/checker.yml/badge.svg)](https://github.com/DeltaLaboratory/fwt/actions/workflows/checker.yml)
+# Fast Web Token
 
-A lightweight, high-performance JWT alternative that leverages CBOR (Concise Binary Object Representation) for serialization and provides multiple secure signing options including EdDSA, HMAC, Blake2b, and Blake3.
+[![Build Status](https://github.com/DeltaLaboratory/fwt/actions/workflows/checker.yml/badge.svg)](https://github.com/DeltaLaboratory/fwt/actions/workflows/checker.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/DeltaLaboratory/fwt.svg)](https://pkg.go.dev/github.com/DeltaLaboratory/fwt)
+[![Go Report Card](https://goreportcard.com/badge/github.com/DeltaLaboratory/fwt)](https://goreportcard.com/report/github.com/DeltaLaboratory/fwt)
+
+A lightweight, high-performance JWT alternative leveraging CBOR serialization with multiple secure signing options.
+
+## Features
+
+- Multiple secure signing options (EdDSA, HMAC, Blake2b, Blake3)
+- Compact binary format using CBOR
+- High-performance implementation
+- Post-quantum resistant signatures (Ed448)
+- Customizable CBOR encoding
+- Lightweight design
+
+## Installation
+
+```bash
+go get github.com/DeltaLaboratory/fwt/v2
+```
+
+## Quick Start
+
+### Create and Sign a Token
+
+```go
+package main
+
+import (
+	"time"
+
+	"github.com/DeltaLaboratory/fwt/v2"
+)
+
+func main() {
+	signer, err := fwt.NewSigner(fwt.NewBlake3Signer([]byte("somekeyhere")))
+	
+	if err != nil {
+		panic(err)
+	}
+
+	payload := map[string]any{
+		"user_id": 123,
+		"exp":     time.Now().Add(time.Hour).Unix(),
+	}
+
+	token, err := signer.Sign(payload)
+	if err != nil {
+		panic(err)
+	}
+}
+```
+
+### Verify a Token
+
+```go
+package main
+
+import "github.com/DeltaLaboratory/fwt/v2"
+
+func verifyToken(token []byte) {
+	verifier, err := fwt.NewVerifier(fwt.NewBlake3Verifier([]byte("somekey")))
+	
+	if err != nil {
+		panic(err)
+	}
+	
+	var payload map[string]any
+	if err := verifier.VerifyAndUnmarshal(token, &payload); err != nil {
+		panic(err)
+	}
+}
+```
+
+For more example, see [test code](fwt_test.go).
 
 ## Token Structure
-|     Header      |        Payload         |                Signature                 |
-|:---------------:|:----------------------:|:----------------------------------------:|
-| 9 bytes (fixed) | Variable length (CBOR) | 32/64/114 bytes (depending on algorithm) |
 
-### Header Details
-- Byte 1: SignatureType identifier
-- Bytes 2-9: Payload size (big-endian encoded)
+FWT uses a compact binary structure:
 
-### Supported Signature Types
-| Algorithm  | Output Size | Description                 | Use Case                           |
-|------------|-------------|-----------------------------|------------------------------------|
-| Ed25519    | 64 bytes    | RFC-8032 EdDSA signature    | General-purpose digital signatures |
-| Ed448      | 114 bytes   | RFC-8032 EdDSA signature    | Post-quantum resistant signatures  |
-| HMACSha256 | 32 bytes    | HMAC with SHA-256           | Symmetric key authentication       |
-| HMACSha512 | 64 bytes    | HMAC with SHA-512           | Enhanced symmetric authentication  |
-| Blake2b256 | 32 bytes    | Blake2b with 256-bit output | Fast hash-based signatures         |
-| Blake2b512 | 64 bytes    | Blake2b with 512-bit output | Enhanced hash-based signatures     |
-| Blake3     | 32 bytes    | Blake3 with 256-bit output  | Modern, high-performance signing   |
+| Section   | Size                | Description             |
+|-----------|---------------------|-------------------------|
+| Header    | 2 ~ 10 bytes (vary) | Type + Payload Size     |
+| Payload   | Variable (CBOR)     | Token Data              |
+| Signature | 32/64/114 bytes     | Cryptographic Signature |
 
-## Usage
+## Supported Algorithms
 
-### Creating a Signer
-```
-// Example with Ed25519
-signer := fwt.NewSigner(
-signFunction,    // Signing function
-nil,            // Optional encryption function
-fwt.SignatureTypeEd25519,
-)
-```
+| Algorithm  | Signature Size (bytes) |
+|------------|------------------------|
+| Ed25519    | 64                     |
+| Ed448      | 114                    |
+| HMACSha256 | 32                     |
+| HMACSha512 | 64                     |
+| Blake2b256 | 32                     |
+| Blake2b512 | 64                     |
+| Blake3     | 32                     |
 
-### Signing Data
-```
-data := map[string]interface{}{
-"user_id": 123,
-"exp": time.Now().Add(time.Hour).Unix(),
-}
+## Supported Encryption Algorithms
 
-token, err := signer.Sign(data)
-if err != nil {
-// Handle error
-}
-```
+| Algorithm          | Type          |
+|--------------------|---------------|
+| XChaCha20-Poly1305 | AEAD          |
+| AES-GCM            | AEAD          |
+| AES-CBC            | Block Cipher  |
+| AES-CTR            | Stream Cipher |
+| HPKE               | Hybrid        |
+| AES-ECB            | Block Cipher  |
 
-### Verifying Tokens
-```
-verifier := fwt.NewVerifier(
-verifyFunction,  // Verification function
-nil,            // Optional decryption function
-fwt.SignatureTypeEd25519,
-)
+## Advanced Usage
 
-var dst map[string]interface{}
-err := verifier.VerifyAndUnmarshal(token, &dst)
-if err != nil {
-// Handle error
-}
-```
-
-## Customization
 ### Custom CBOR Encoding
-```
+
+```go
 // Set custom encoder
 fwt.SetEncoder(customEncoder)
 
@@ -73,7 +121,6 @@ fwt.SetEncoder(customEncoder)
 fwt.SetDecoder(customDecoder)
 ```
 
-## Contributing
-Contributions are welcome! Please feel free to submit pull requests.
+## License
 
-For bug reports and feature requests, please use the GitHub issue tracker.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
