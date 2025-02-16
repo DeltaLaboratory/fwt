@@ -1,4 +1,4 @@
-module github.com/DeltaLaboratory/fwt
+module github.com/DeltaLaboratory/fwt/v2
 
 go 1.23.4
 
