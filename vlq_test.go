@@ -24,6 +24,7 @@ func TestVLQEncodeDecode(t *testing.T) {
 		{"two-bytes-max", 16384, 2, false, 2},
 		{"large-value", 1234567890, 5, false, 5},
 		{"max-uint32", uint64(^uint32(0)), 5, false, 5},
+		{"max-uint64", ^uint64(0), 10, false, 10},
 	}
 
 	for _, tt := range tests {

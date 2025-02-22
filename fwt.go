@@ -133,7 +133,7 @@ func (s *Signer) Sign(data any) (string, error) {
 	}
 
 	// allocate token type + VLQ Max Length + marshaled length + signature length
-	token := memory.Alloc(1 + 9 + len(marshaled) + len(signature))
+	token := memory.Alloc(1 + 10 + len(marshaled) + len(signature))
 	token[0] = byte(s.signatureType)
 
 	vlqLength, err := encodeVLQ(token[1:], uint64(len(marshaled)))
