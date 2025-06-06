@@ -6,7 +6,7 @@ require (
 	github.com/cloudflare/circl v1.6.1
 	github.com/fxamacker/cbor/v2 v2.8.0
 	github.com/zeebo/blake3 v0.2.4
-	golang.org/x/crypto v0.38.0
+	golang.org/x/crypto v0.39.0
 )
 
 require (
